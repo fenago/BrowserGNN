@@ -8,7 +8,7 @@
  */
 
 // Version
-export const VERSION = '0.3.0';
+export const VERSION = '0.4.0';
 export const AUTHOR = 'Dr. Lee';
 
 // Core data structures

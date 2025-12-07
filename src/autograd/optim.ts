@@ -130,7 +130,7 @@ export class SGD extends Optimizer {
         // Apply weight decay
         if (weightDecay !== 0) {
           for (let i = 0; i < grad.size; i++) {
-            grad.data[i] += weightDecay * param.data.data[i]!;
+            grad.data[i]! += weightDecay * param.data.data[i]!;
           }
         }
 
@@ -153,18 +153,18 @@ export class SGD extends Optimizer {
           if (this.nesterov) {
             // Nesterov: use grad + momentum * velocity
             for (let i = 0; i < grad.size; i++) {
-              param.data.data[i] -= lr * (grad.data[i]! + this.momentum * velocity[i]!);
+              param.data.data[i]! -= lr * (grad.data[i]! + this.momentum * velocity[i]!);
             }
           } else {
             // Standard momentum: use velocity directly
             for (let i = 0; i < grad.size; i++) {
-              param.data.data[i] -= lr * velocity[i]!;
+              param.data.data[i]! -= lr * velocity[i]!;
             }
           }
         } else {
           // No momentum: simple gradient descent
           for (let i = 0; i < grad.size; i++) {
-            param.data.data[i] -= lr * grad.data[i]!;
+            param.data.data[i]! -= lr * grad.data[i]!;
           }
         }
       }
@@ -275,7 +275,7 @@ export class Adam extends Optimizer {
         // Apply weight decay (AdamW style - decoupled)
         if (weightDecay !== 0) {
           for (let i = 0; i < param.data.size; i++) {
-            param.data.data[i] -= lr * weightDecay * param.data.data[i]!;
+            param.data.data[i]! -= lr * weightDecay * param.data.data[i]!;
           }
         }
 
@@ -332,7 +332,7 @@ export class Adam extends Optimizer {
         // Update parameters
         const stepSize = lr / biasCorrection1;
         for (let i = 0; i < param.data.size; i++) {
-          param.data.data[i] -= stepSize * mState[i]! / denom[i]!;
+          param.data.data[i]! -= stepSize * mState[i]! / denom[i]!;
         }
       }
     }
@@ -443,7 +443,7 @@ export class Adagrad extends Optimizer {
         // Apply weight decay
         if (weightDecay !== 0) {
           for (let i = 0; i < grad.size; i++) {
-            grad.data[i] += weightDecay * param.data.data[i]!;
+            grad.data[i]! += weightDecay * param.data.data[i]!;
           }
         }
 
@@ -456,12 +456,12 @@ export class Adagrad extends Optimizer {
 
         // Accumulate squared gradients
         for (let i = 0; i < grad.size; i++) {
-          sumSq[i] += grad.data[i]! * grad.data[i]!;
+          sumSq[i]! += grad.data[i]! * grad.data[i]!;
         }
 
         // Update parameters
         for (let i = 0; i < param.data.size; i++) {
-          param.data.data[i] -= lr * grad.data[i]! / (Math.sqrt(sumSq[i]!) + this.eps);
+          param.data.data[i]! -= lr * grad.data[i]! / (Math.sqrt(sumSq[i]!) + this.eps);
         }
       }
     }
@@ -551,7 +551,7 @@ export class RMSprop extends Optimizer {
         // Apply weight decay
         if (weightDecay !== 0) {
           for (let i = 0; i < grad.size; i++) {
-            grad.data[i] += weightDecay * param.data.data[i]!;
+            grad.data[i]! += weightDecay * param.data.data[i]!;
           }
         }
 
@@ -602,11 +602,11 @@ export class RMSprop extends Optimizer {
           }
 
           for (let i = 0; i < param.data.size; i++) {
-            param.data.data[i] -= lr * buf[i]!;
+            param.data.data[i]! -= lr * buf[i]!;
           }
         } else {
           for (let i = 0; i < param.data.size; i++) {
-            param.data.data[i] -= lr * grad.data[i]! / (Math.sqrt(avg[i]!) + this.eps);
+            param.data.data[i]! -= lr * grad.data[i]! / (Math.sqrt(avg[i]!) + this.eps);
           }
         }
       }

@@ -144,7 +144,7 @@ export class Variable {
 
     // Add gradient (allows accumulation from multiple paths)
     for (let i = 0; i < this.grad.size; i++) {
-      this.grad.data[i] += grad.data[i]!;
+      this.grad.data[i]! += grad.data[i]!;
     }
     this._gradAccumulated = true;
   }
@@ -464,7 +464,7 @@ export class Variable {
 
       // Normalize
       for (let j = 0; j < cols; j++) {
-        resultData[i * cols + j] /= sum;
+        resultData[i * cols + j]! /= sum;
       }
     }
 
@@ -678,7 +678,7 @@ export class Variable {
       const reduced = new Float32Array(targetShape[0]!);
       for (let i = 0; i < rows!; i++) {
         for (let j = 0; j < cols!; j++) {
-          reduced[j] += grad.data[i * cols! + j]!;
+          reduced[j]! += grad.data[i * cols! + j]!;
         }
       }
       return new Tensor(reduced, targetShape);

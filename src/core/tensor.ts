@@ -270,6 +270,17 @@ export class Tensor {
   }
 
   /**
+   * Negate all elements (multiply by -1)
+   */
+  neg(): Tensor {
+    const result = new Float32Array(this.size);
+    for (let i = 0; i < this.size; i++) {
+      result[i] = -this.data[i]!;
+    }
+    return new Tensor(result, this.shape, this.dtype);
+  }
+
+  /**
    * Matrix multiplication for 2D tensors
    * Uses WASM kernel with 4x loop unrolling for optimal performance
    */
