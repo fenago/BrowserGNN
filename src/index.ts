@@ -8,7 +8,7 @@
  */
 
 // Version
-export const VERSION = '0.1.0';
+export const VERSION = '0.3.0';
 export const AUTHOR = 'Dr. Lee';
 
 // Core data structures
@@ -92,6 +92,37 @@ export {
   type BenchmarkResult,
   type BenchmarkConfig,
 } from './benchmarks';
+
+// Autograd and Training
+export {
+  // Variable with gradient tracking
+  Variable,
+  type BackwardFn,
+  type GradNode,
+  // Loss functions
+  crossEntropyLoss,
+  mseLoss,
+  binaryCrossEntropyLoss,
+  nllLoss,
+  l1Loss,
+  smoothL1Loss,
+  // Optimizers
+  Optimizer,
+  SGD,
+  Adam,
+  Adagrad,
+  RMSprop,
+  // Learning rate schedulers
+  LRScheduler,
+  StepLR,
+  ExponentialLR,
+  CosineAnnealingLR,
+  type ParamGroup,
+  // Trainer
+  Trainer,
+  type TrainerConfig,
+  type TrainingMetrics,
+} from './autograd';
 
 // Convenience function to create and initialize BrowserGNN
 export async function createBrowserGNN(config?: {

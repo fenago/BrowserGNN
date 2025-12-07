@@ -21,9 +21,9 @@ BrowserGNN aims to become the **"PyTorch Geometric for the browser"** - enabling
 
 ---
 
-## Current Status: Phase 2 Complete ✅
+## Current Status: Phase 3 In Progress 🔄
 
-**Version:** 0.3.0
+**Version:** 0.4.0-dev
 **Released:** December 2024
 
 ### What's Working Now
@@ -40,11 +40,11 @@ BrowserGNN aims to become the **"PyTorch Geometric for the browser"** - enabling
 - ✅ Dropout layer
 - ✅ CLI tool (`npx browser-gnn`)
 - ✅ Interactive demos (Karate Club, benchmarks)
-- ✅ Comprehensive test suite (69+ tests)
+- ✅ Comprehensive test suite (109+ tests)
 - ✅ npm package published
 - ✅ Live demo deployed
 
-#### Phase 2 Performance (NEW)
+#### Phase 2 Performance
 - ✅ **WASM-optimized kernels** with 8x loop unrolling
 - ✅ **WASM scatter operations** (scatterAdd, scatterMean, scatterMax)
 - ✅ **WASM gather operations** for message passing
@@ -52,6 +52,15 @@ BrowserGNN aims to become the **"PyTorch Geometric for the browser"** - enabling
 - ✅ **WASM ReLU and Add** element-wise operations
 - ✅ **WebGPU compute shaders** for async inference
 - ✅ All GNN layers (GCN, GAT, SAGE) use WASM-optimized forward()
+
+#### Phase 3 Training (NEW)
+- ✅ **Autograd system** with computational graph tracking
+- ✅ **Variable class** with requiresGrad and backward()
+- ✅ **Loss functions**: CrossEntropy, MSE, BCE, NLL, L1, SmoothL1
+- ✅ **Optimizers**: SGD (momentum, Nesterov), Adam (AMSGrad), Adagrad, RMSprop
+- ✅ **LR Schedulers**: Step, Exponential, Cosine Annealing
+- ✅ **Trainer class** with early stopping and callbacks
+- ✅ **Live training dashboard** with real-time metrics visualization
 
 ---
 

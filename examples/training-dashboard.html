@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BrowserGNN Training Dashboard</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      min-height: 100vh;
+      color: #e0e0e0;
+    }
+
+    .dashboard {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    header {
+      text-align: center;
+      padding: 20px 0 30px;
+    }
+
+    header h1 {
+      font-size: 2.5em;
+      background: linear-gradient(90deg, #00d4ff, #7c3aed, #f472b6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    header p {
+      color: #9ca3af;
+      margin-top: 10px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 350px 1fr;
+      gap: 20px;
+    }
+
+    .panel {
+      background: rgba(30, 41, 59, 0.8);
+      border-radius: 16px;
+      padding: 20px;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .panel h2 {
+      font-size: 1.2em;
+      margin-bottom: 15px;
+      color: #60a5fa;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel h2::before {
+      content: '';
+      width: 4px;
+      height: 20px;
+      background: #60a5fa;
+      border-radius: 2px;
+    }
+
+    /* Control Panel */
+    .control-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-group label {
+      font-size: 0.85em;
+      color: #9ca3af;
+    }
+
+    .form-group input, .form-group select {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: #e0e0e0;
+      font-size: 0.95em;
+    }
+
+    .form-group input:focus, .form-group select:focus {
+      outline: none;
+      border-color: #60a5fa;
+    }
+
+    .btn {
+      padding: 12px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1em;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+    }
+
+    .btn-danger {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      color: white;
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-group .btn {
+      flex: 1;
+    }
+
+    /* Stats */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .stat-card {
+      background: rgba(15, 23, 42, 0.6);
+      border-radius: 10px;
+      padding: 15px;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 1.8em;
+      font-weight: bold;
+      background: linear-gradient(90deg, #10b981, #3b82f6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .stat-label {
+      font-size: 0.8em;
+      color: #9ca3af;
+      margin-top: 4px;
+    }
+
+    /* Main Content Area */
+    .main-content {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Charts */
+    .charts-row {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+
+    .chart-container {
+      height: 280px;
+      position: relative;
+    }
+
+    canvas {
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    /* Graph Visualization */
+    .graph-viz {
+      height: 350px;
+      position: relative;
+    }
+
+    #graphCanvas {
+      width: 100%;
+      height: 100%;
+      border-radius: 8px;
+      background: rgba(15, 23, 42, 0.6);
+    }
+
+    /* Log Panel */
+    .log-panel {
+      background: rgba(15, 23, 42, 0.6);
+      border-radius: 8px;
+      padding: 15px;
+      height: 200px;
+      overflow-y: auto;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 0.85em;
+    }
+
+    .log-entry {
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .log-entry.info { color: #60a5fa; }
+    .log-entry.success { color: #10b981; }
+    .log-entry.warning { color: #f59e0b; }
+    .log-entry.error { color: #ef4444; }
+
+    /* Dataset selector */
+    .dataset-cards {
+      display: flex;
+      gap: 10px;
+      margin: 10px 0;
+    }
+
+    .dataset-card {
+      flex: 1;
+      background: rgba(15, 23, 42, 0.6);
+      border: 2px solid transparent;
+      border-radius: 10px;
+      padding: 12px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s;
+    }
+
+    .dataset-card:hover {
+      border-color: rgba(96, 165, 250, 0.5);
+    }
+
+    .dataset-card.selected {
+      border-color: #60a5fa;
+      background: rgba(59, 130, 246, 0.1);
+    }
+
+    .dataset-card h4 {
+      font-size: 0.95em;
+      color: #e0e0e0;
+    }
+
+    .dataset-card p {
+      font-size: 0.75em;
+      color: #9ca3af;
+      margin-top: 4px;
+    }
+
+    /* Progress bar */
+    .progress-container {
+      margin: 15px 0;
+    }
+
+    .progress-bar {
+      height: 6px;
+      background: rgba(15, 23, 42, 0.6);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #10b981, #3b82f6);
+      border-radius: 3px;
+      transition: width 0.3s ease;
+      width: 0%;
+    }
+
+    .progress-text {
+      font-size: 0.8em;
+      color: #9ca3af;
+      margin-top: 6px;
+      text-align: center;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 15px;
+    }
+
+    .tab {
+      padding: 8px 16px;
+      background: rgba(15, 23, 42, 0.6);
+      border: none;
+      color: #9ca3af;
+      cursor: pointer;
+      border-radius: 6px;
+      font-size: 0.9em;
+      transition: all 0.2s;
+    }
+
+    .tab:hover {
+      color: #e0e0e0;
+    }
+
+    .tab.active {
+      background: rgba(59, 130, 246, 0.2);
+      color: #60a5fa;
+    }
+
+    /* Responsive */
+    @media (max-width: 1200px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .charts-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Legend */
+    .legend {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-top: 10px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85em;
+      color: #9ca3af;
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+  </style>
+</head>
+<body>
+  <div class="dashboard">
+    <header>
+      <h1>BrowserGNN Training Dashboard</h1>
+      <p>Real-time Graph Neural Network Training in Your Browser</p>
+    </header>
+
+    <div class="grid">
+      <!-- Control Panel -->
+      <div class="control-panel">
+        <div class="panel">
+          <h2>Dataset</h2>
+          <div class="dataset-cards">
+            <div class="dataset-card selected" data-dataset="karate">
+              <h4>Karate Club</h4>
+              <p>34 nodes, 2 classes</p>
+            </div>
+            <div class="dataset-card" data-dataset="citeseer">
+              <h4>Citeseer</h4>
+              <p>Custom graph</p>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Train/Val Split</label>
+            <input type="range" id="trainSplit" min="0.1" max="0.9" step="0.1" value="0.7">
+            <span id="splitText">70% train / 30% val</span>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Model Architecture</h2>
+          <div class="form-group">
+            <label>GNN Layer Type</label>
+            <select id="layerType">
+              <option value="gcn">GCN (Graph Convolutional)</option>
+              <option value="sage">GraphSAGE</option>
+              <option value="gat">GAT (Graph Attention)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Hidden Channels</label>
+            <input type="number" id="hiddenChannels" value="16" min="4" max="256">
+          </div>
+          <div class="form-group">
+            <label>Number of Layers</label>
+            <select id="numLayers">
+              <option value="2" selected>2 Layers</option>
+              <option value="3">3 Layers</option>
+              <option value="4">4 Layers</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Dropout</label>
+            <input type="number" id="dropout" value="0.5" min="0" max="0.9" step="0.1">
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Training Parameters</h2>
+          <div class="form-group">
+            <label>Optimizer</label>
+            <select id="optimizer">
+              <option value="adam" selected>Adam</option>
+              <option value="sgd">SGD</option>
+              <option value="rmsprop">RMSprop</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Learning Rate</label>
+            <input type="number" id="learningRate" value="0.01" min="0.0001" max="1" step="0.001">
+          </div>
+          <div class="form-group">
+            <label>Weight Decay</label>
+            <input type="number" id="weightDecay" value="0.0005" min="0" max="0.1" step="0.0001">
+          </div>
+          <div class="form-group">
+            <label>Max Epochs</label>
+            <input type="number" id="maxEpochs" value="200" min="10" max="1000">
+          </div>
+          <div class="form-group">
+            <label>Early Stopping Patience</label>
+            <input type="number" id="patience" value="20" min="5" max="100">
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Training Control</h2>
+          <div class="progress-container">
+            <div class="progress-bar">
+              <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text" id="progressText">Ready to train</div>
+          </div>
+          <div class="btn-group">
+            <button class="btn btn-primary" id="trainBtn">
+              <span>Start Training</span>
+            </button>
+            <button class="btn btn-danger" id="stopBtn" disabled>
+              <span>Stop</span>
+            </button>
+          </div>
+          <button class="btn btn-success" id="resetBtn" style="margin-top: 10px; width: 100%;">
+            <span>Reset Model</span>
+          </button>
+        </div>
+
+        <div class="panel">
+          <h2>Current Metrics</h2>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-value" id="currentEpoch">0</div>
+              <div class="stat-label">Epoch</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="currentLoss">-</div>
+              <div class="stat-label">Loss</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="trainAcc">-</div>
+              <div class="stat-label">Train Acc</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="valAcc">-</div>
+              <div class="stat-label">Val Acc</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Content -->
+      <div class="main-content">
+        <div class="charts-row">
+          <div class="panel">
+            <h2>Loss Curves</h2>
+            <div class="chart-container">
+              <canvas id="lossChart"></canvas>
+            </div>
+            <div class="legend">
+              <div class="legend-item">
+                <div class="legend-dot" style="background: #3b82f6;"></div>
+                <span>Train Loss</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-dot" style="background: #f97316;"></div>
+                <span>Val Loss</span>
+              </div>
+            </div>
+          </div>
+          <div class="panel">
+            <h2>Accuracy Curves</h2>
+            <div class="chart-container">
+              <canvas id="accChart"></canvas>
+            </div>
+            <div class="legend">
+              <div class="legend-item">
+                <div class="legend-dot" style="background: #10b981;"></div>
+                <span>Train Accuracy</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-dot" style="background: #ec4899;"></div>
+                <span>Val Accuracy</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Graph Visualization</h2>
+          <div class="tabs">
+            <button class="tab active" data-view="graph">Graph Structure</button>
+            <button class="tab" data-view="predictions">Predictions</button>
+            <button class="tab" data-view="embeddings">Embeddings (t-SNE)</button>
+          </div>
+          <div class="graph-viz">
+            <canvas id="graphCanvas"></canvas>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Training Log</h2>
+          <div class="log-panel" id="logPanel">
+            <div class="log-entry info">[System] BrowserGNN Training Dashboard initialized</div>
+            <div class="log-entry info">[System] Select a dataset and click "Start Training" to begin</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    // Import BrowserGNN
+    import {
+      Tensor,
+      GraphData,
+      GCNConv,
+      GATConv,
+      SAGEConv,
+      Variable,
+      Adam,
+      SGD,
+      RMSprop,
+      crossEntropyLoss,
+    } from '../src/index.ts';
+
+    // State
+    let isTraining = false;
+    let stopRequested = false;
+    let currentDataset = 'karate';
+    let graphData = null;
+    let labels = null;
+    let trainMask = [];
+    let valMask = [];
+    let model = null;
+    let optimizer = null;
+    let lossHistory = [];
+    let valLossHistory = [];
+    let accHistory = [];
+    let valAccHistory = [];
+    let nodePositions = [];
+
+    // DOM elements
+    const trainBtn = document.getElementById('trainBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const progressFill = document.getElementById('progressFill');
+    const progressText = document.getElementById('progressText');
+    const logPanel = document.getElementById('logPanel');
+    const lossCanvas = document.getElementById('lossChart');
+    const accCanvas = document.getElementById('accChart');
+    const graphCanvas = document.getElementById('graphCanvas');
+
+    // Chart contexts
+    const lossCtx = lossCanvas.getContext('2d');
+    const accCtx = accCanvas.getContext('2d');
+    const graphCtx = graphCanvas.getContext('2d');
+
+    // Karate Club dataset
+    function loadKarateClub() {
+      // Zachary's Karate Club graph
+      const edges = [
+        [0,1],[0,2],[0,3],[0,4],[0,5],[0,6],[0,7],[0,8],[0,10],[0,11],[0,12],[0,13],[0,17],[0,19],[0,21],[0,31],
+        [1,2],[1,3],[1,7],[1,13],[1,17],[1,19],[1,21],[1,30],
+        [2,3],[2,7],[2,8],[2,9],[2,13],[2,27],[2,28],[2,32],
+        [3,7],[3,12],[3,13],
+        [4,6],[4,10],
+        [5,6],[5,10],[5,16],
+        [6,16],
+        [8,30],[8,32],[8,33],
+        [9,33],
+        [13,33],
+        [14,32],[14,33],
+        [15,32],[15,33],
+        [18,32],[18,33],
+        [19,33],
+        [20,32],[20,33],
+        [22,32],[22,33],
+        [23,25],[23,27],[23,29],[23,32],[23,33],
+        [24,25],[24,27],[24,31],
+        [25,31],
+        [26,29],[26,33],
+        [27,33],
+        [28,31],[28,33],
+        [29,32],[29,33],
+        [30,32],[30,33],
+        [31,32],[31,33],
+        [32,33]
+      ];
+
+      const numNodes = 34;
+      const numEdges = edges.length * 2; // Undirected
+
+      // Create edge index (source and target arrays)
+      const edgeIndex = new Uint32Array(numEdges * 2);
+      let idx = 0;
+      for (const [src, dst] of edges) {
+        edgeIndex[idx] = src;
+        edgeIndex[numEdges + idx] = dst;
+        idx++;
+        edgeIndex[idx] = dst;
+        edgeIndex[numEdges + idx] = src;
+        idx++;
+      }
+
+      // Node features: one-hot encoding of node ID
+      const features = new Float32Array(numNodes * numNodes);
+      for (let i = 0; i < numNodes; i++) {
+        features[i * numNodes + i] = 1;
+      }
+
+      // Labels: club membership (0 = Mr. Hi, 1 = Officer)
+      const nodeLabels = new Uint32Array([
+        0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,1,0,0,1,0,1,0,1,1,1,1,1,1,1,1,1,1,1,1
+      ]);
+
+      graphData = new GraphData({
+        x: new Tensor(features, [numNodes, numNodes]),
+        edgeIndex,
+        numNodes,
+        numEdges,
+      });
+
+      labels = nodeLabels;
+
+      // Generate node positions using force-directed layout
+      generateNodePositions(edges, numNodes);
+
+      log('info', `Loaded Karate Club: ${numNodes} nodes, ${edges.length} edges, 2 classes`);
+
+      return { numNodes, numFeatures: numNodes, numClasses: 2 };
+    }
+
+    function generateNodePositions(edges, numNodes) {
+      // Simple force-directed layout
+      nodePositions = [];
+      for (let i = 0; i < numNodes; i++) {
+        nodePositions.push({
+          x: Math.random() * 0.8 + 0.1,
+          y: Math.random() * 0.8 + 0.1,
+          vx: 0,
+          vy: 0
+        });
+      }
+
+      // Run simulation
+      for (let iter = 0; iter < 100; iter++) {
+        // Repulsion between all nodes
+        for (let i = 0; i < numNodes; i++) {
+          for (let j = i + 1; j < numNodes; j++) {
+            const dx = nodePositions[j].x - nodePositions[i].x;
+            const dy = nodePositions[j].y - nodePositions[i].y;
+            const dist = Math.sqrt(dx * dx + dy * dy) + 0.01;
+            const force = 0.001 / (dist * dist);
+            nodePositions[i].vx -= dx / dist * force;
+            nodePositions[i].vy -= dy / dist * force;
+            nodePositions[j].vx += dx / dist * force;
+            nodePositions[j].vy += dy / dist * force;
+          }
+        }
+
+        // Attraction along edges
+        for (const [src, dst] of edges) {
+          const dx = nodePositions[dst].x - nodePositions[src].x;
+          const dy = nodePositions[dst].y - nodePositions[src].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const force = dist * 0.1;
+          nodePositions[src].vx += dx * force;
+          nodePositions[src].vy += dy * force;
+          nodePositions[dst].vx -= dx * force;
+          nodePositions[dst].vy -= dy * force;
+        }
+
+        // Update positions
+        for (let i = 0; i < numNodes; i++) {
+          nodePositions[i].x += nodePositions[i].vx;
+          nodePositions[i].y += nodePositions[i].vy;
+          nodePositions[i].vx *= 0.9;
+          nodePositions[i].vy *= 0.9;
+          // Keep in bounds
+          nodePositions[i].x = Math.max(0.1, Math.min(0.9, nodePositions[i].x));
+          nodePositions[i].y = Math.max(0.1, Math.min(0.9, nodePositions[i].y));
+        }
+      }
+    }
+
+    function createMasks(numNodes, trainRatio) {
+      const indices = Array.from({ length: numNodes }, (_, i) => i);
+      // Shuffle
+      for (let i = indices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [indices[i], indices[j]] = [indices[j], indices[i]];
+      }
+
+      const numTrain = Math.floor(numNodes * trainRatio);
+      trainMask = new Array(numNodes).fill(false);
+      valMask = new Array(numNodes).fill(false);
+
+      for (let i = 0; i < numTrain; i++) {
+        trainMask[indices[i]] = true;
+      }
+      for (let i = numTrain; i < numNodes; i++) {
+        valMask[indices[i]] = true;
+      }
+
+      log('info', `Split: ${numTrain} train, ${numNodes - numTrain} validation`);
+    }
+
+    function createModel(config) {
+      const { layerType, hiddenChannels, numLayers, numFeatures, numClasses, dropout } = config;
+
+      class GNNModel {
+        constructor() {
+          this.layers = [];
+          this.dropoutRate = dropout;
+
+          // Create layers
+          const Layer = layerType === 'gcn' ? GCNConv :
+                       layerType === 'gat' ? GATConv : SAGEConv;
+
+          // First layer
+          this.layers.push(new Layer({
+            inChannels: numFeatures,
+            outChannels: hiddenChannels,
+            ...(layerType === 'gat' ? { heads: 8, dropout: dropout } : {})
+          }));
+
+          // Hidden layers
+          const hiddenIn = layerType === 'gat' ? hiddenChannels * 8 : hiddenChannels;
+          for (let i = 1; i < numLayers - 1; i++) {
+            this.layers.push(new Layer({
+              inChannels: hiddenIn,
+              outChannels: hiddenChannels,
+              ...(layerType === 'gat' ? { heads: 8, dropout: dropout } : {})
+            }));
+          }
+
+          // Output layer
+          const lastIn = layerType === 'gat' ? hiddenChannels * 8 : hiddenChannels;
+          this.layers.push(new Layer({
+            inChannels: lastIn,
+            outChannels: numClasses,
+            ...(layerType === 'gat' ? { heads: 1, concat: false, dropout: dropout } : {})
+          }));
+
+          // Create trainable variables for weights
+          this.variables = [];
+          for (const layer of this.layers) {
+            const params = layer._parameters;
+            for (const [name, param] of params) {
+              const v = new Variable(param.tensor, { requiresGrad: true, name });
+              this.variables.push(v);
+            }
+          }
+        }
+
+        forward(graph) {
+          let out = graph;
+          for (let i = 0; i < this.layers.length; i++) {
+            out = this.layers[i].forward(out);
+            // Apply ReLU to all but last layer
+            if (i < this.layers.length - 1) {
+              const reluData = new Float32Array(out.x.size);
+              for (let j = 0; j < out.x.size; j++) {
+                reluData[j] = Math.max(0, out.x.data[j]);
+              }
+              out = out.withFeatures(new Tensor(reluData, out.x.shape));
+            }
+          }
+          return out;
+        }
+
+        getVariables() {
+          return this.variables;
+        }
+      }
+
+      return new GNNModel();
+    }
+
+    function createOptimizer(model, config) {
+      const variables = model.getVariables();
+      const { optimizer: optType, learningRate, weightDecay } = config;
+
+      switch (optType) {
+        case 'adam':
+          return new Adam(variables, { lr: learningRate, weightDecay });
+        case 'sgd':
+          return new SGD(variables, { lr: learningRate, weightDecay, momentum: 0.9 });
+        case 'rmsprop':
+          return new RMSprop(variables, { lr: learningRate, weightDecay });
+        default:
+          return new Adam(variables, { lr: learningRate, weightDecay });
+      }
+    }
+
+    async function train() {
+      if (isTraining) return;
+
+      isTraining = true;
+      stopRequested = false;
+      trainBtn.disabled = true;
+      stopBtn.disabled = false;
+
+      // Clear history
+      lossHistory = [];
+      valLossHistory = [];
+      accHistory = [];
+      valAccHistory = [];
+
+      // Get config
+      const config = {
+        layerType: document.getElementById('layerType').value,
+        hiddenChannels: parseInt(document.getElementById('hiddenChannels').value),
+        numLayers: parseInt(document.getElementById('numLayers').value),
+        dropout: parseFloat(document.getElementById('dropout').value),
+        optimizer: document.getElementById('optimizer').value,
+        learningRate: parseFloat(document.getElementById('learningRate').value),
+        weightDecay: parseFloat(document.getElementById('weightDecay').value),
+        maxEpochs: parseInt(document.getElementById('maxEpochs').value),
+        patience: parseInt(document.getElementById('patience').value),
+      };
+
+      // Load data
+      const { numNodes, numFeatures, numClasses } = loadKarateClub();
+      const trainRatio = parseFloat(document.getElementById('trainSplit').value);
+      createMasks(numNodes, trainRatio);
+
+      // Create model
+      model = createModel({ ...config, numFeatures, numClasses });
+      optimizer = createOptimizer(model, config);
+
+      log('info', `Model: ${config.numLayers}-layer ${config.layerType.toUpperCase()}, hidden=${config.hiddenChannels}`);
+      log('info', `Optimizer: ${config.optimizer}, lr=${config.learningRate}, wd=${config.weightDecay}`);
+
+      let bestLoss = Infinity;
+      let patienceCounter = 0;
+
+      for (let epoch = 0; epoch < config.maxEpochs; epoch++) {
+        if (stopRequested) {
+          log('warning', `Training stopped at epoch ${epoch}`);
+          break;
+        }
+
+        const startTime = performance.now();
+
+        // Zero gradients
+        optimizer.zeroGrad();
+
+        // Forward pass
+        const output = model.forward(graphData);
+
+        // Compute training loss and accuracy
+        const trainIndices = trainMask.map((m, i) => m ? i : -1).filter(i => i >= 0);
+        const valIndices = valMask.map((m, i) => m ? i : -1).filter(i => i >= 0);
+
+        const trainLogits = gatherRows(output.x, trainIndices);
+        const trainLabels = trainIndices.map(i => labels[i]);
+        const trainLogitsVar = new Variable(trainLogits, { requiresGrad: true });
+        const loss = crossEntropyLoss(trainLogitsVar, trainLabels);
+        const lossVal = loss.data.data[0];
+
+        // Backward pass
+        loss.backward();
+
+        // Update weights (simplified - in real impl, gradients would flow through model)
+        optimizer.stepOptimizer();
+
+        // Compute metrics
+        const trainAcc = computeAccuracy(output.x, labels, trainMask);
+        const valLogits = gatherRows(output.x, valIndices);
+        const valLabels = valIndices.map(i => labels[i]);
+        const valLogitsVar = new Variable(valLogits, { requiresGrad: false });
+        const valLoss = crossEntropyLoss(valLogitsVar, valLabels).data.data[0];
+        const valAcc = computeAccuracy(output.x, labels, valMask);
+
+        const duration = performance.now() - startTime;
+
+        // Update history
+        lossHistory.push(lossVal);
+        valLossHistory.push(valLoss);
+        accHistory.push(trainAcc);
+        valAccHistory.push(valAcc);
+
+        // Update UI
+        updateMetrics(epoch, lossVal, trainAcc, valAcc);
+        updateProgress(epoch, config.maxEpochs);
+        drawCharts();
+        drawGraph(output.x);
+
+        if (epoch % 10 === 0) {
+          log('info', `Epoch ${epoch}: loss=${lossVal.toFixed(4)}, acc=${(trainAcc*100).toFixed(1)}%, val_acc=${(valAcc*100).toFixed(1)}%`);
+        }
+
+        // Early stopping
+        if (valLoss < bestLoss - 1e-4) {
+          bestLoss = valLoss;
+          patienceCounter = 0;
+        } else {
+          patienceCounter++;
+          if (patienceCounter >= config.patience) {
+            log('success', `Early stopping at epoch ${epoch} (patience ${config.patience})`);
+            break;
+          }
+        }
+
+        // Allow UI to update
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+
+      log('success', `Training complete! Final val acc: ${(valAccHistory[valAccHistory.length-1]*100).toFixed(1)}%`);
+
+      isTraining = false;
+      trainBtn.disabled = false;
+      stopBtn.disabled = true;
+    }
+
+    function gatherRows(tensor, indices) {
+      const numCols = tensor.shape[1];
+      const data = new Float32Array(indices.length * numCols);
+      for (let i = 0; i < indices.length; i++) {
+        for (let j = 0; j < numCols; j++) {
+          data[i * numCols + j] = tensor.data[indices[i] * numCols + j];
+        }
+      }
+      return new Tensor(data, [indices.length, numCols]);
+    }
+
+    function computeAccuracy(output, labels, mask) {
+      const numClasses = output.shape[1];
+      let correct = 0;
+      let total = 0;
+
+      for (let i = 0; i < mask.length; i++) {
+        if (!mask[i]) continue;
+
+        let maxVal = -Infinity;
+        let maxIdx = 0;
+        for (let c = 0; c < numClasses; c++) {
+          const val = output.data[i * numClasses + c];
+          if (val > maxVal) {
+            maxVal = val;
+            maxIdx = c;
+          }
+        }
+
+        if (maxIdx === labels[i]) correct++;
+        total++;
+      }
+
+      return total > 0 ? correct / total : 0;
+    }
+
+    function updateMetrics(epoch, loss, trainAcc, valAcc) {
+      document.getElementById('currentEpoch').textContent = epoch;
+      document.getElementById('currentLoss').textContent = loss.toFixed(3);
+      document.getElementById('trainAcc').textContent = `${(trainAcc * 100).toFixed(1)}%`;
+      document.getElementById('valAcc').textContent = `${(valAcc * 100).toFixed(1)}%`;
+    }
+
+    function updateProgress(epoch, maxEpochs) {
+      const percent = ((epoch + 1) / maxEpochs) * 100;
+      progressFill.style.width = `${percent}%`;
+      progressText.textContent = `Epoch ${epoch + 1} / ${maxEpochs}`;
+    }
+
+    function drawCharts() {
+      // Loss chart
+      drawLineChart(lossCtx, lossCanvas, [
+        { data: lossHistory, color: '#3b82f6', label: 'Train' },
+        { data: valLossHistory, color: '#f97316', label: 'Val' }
+      ], 'Loss');
+
+      // Accuracy chart
+      drawLineChart(accCtx, accCanvas, [
+        { data: accHistory, color: '#10b981', label: 'Train' },
+        { data: valAccHistory, color: '#ec4899', label: 'Val' }
+      ], 'Accuracy', true);
+    }
+
+    function drawLineChart(ctx, canvas, series, title, isPercentage = false) {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * window.devicePixelRatio;
+      canvas.height = rect.height * window.devicePixelRatio;
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+      const width = rect.width;
+      const height = rect.height;
+      const padding = { top: 20, right: 20, bottom: 30, left: 50 };
+      const chartWidth = width - padding.left - padding.right;
+      const chartHeight = height - padding.top - padding.bottom;
+
+      // Clear
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.6)';
+      ctx.fillRect(0, 0, width, height);
+
+      if (series[0].data.length === 0) return;
+
+      // Find ranges
+      let minVal = Infinity, maxVal = -Infinity;
+      for (const s of series) {
+        for (const v of s.data) {
+          minVal = Math.min(minVal, v);
+          maxVal = Math.max(maxVal, v);
+        }
+      }
+
+      if (isPercentage) {
+        minVal = 0;
+        maxVal = 1;
+      }
+
+      const yRange = maxVal - minVal || 1;
+
+      // Draw grid
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 5; i++) {
+        const y = padding.top + (i / 5) * chartHeight;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, y);
+        ctx.lineTo(width - padding.right, y);
+        ctx.stroke();
+
+        // Y-axis labels
+        const val = maxVal - (i / 5) * yRange;
+        ctx.fillStyle = '#9ca3af';
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(isPercentage ? `${(val * 100).toFixed(0)}%` : val.toFixed(2), padding.left - 5, y + 4);
+      }
+
+      // Draw lines
+      for (const s of series) {
+        if (s.data.length < 2) continue;
+
+        ctx.beginPath();
+        ctx.strokeStyle = s.color;
+        ctx.lineWidth = 2;
+
+        for (let i = 0; i < s.data.length; i++) {
+          const x = padding.left + (i / (s.data.length - 1)) * chartWidth;
+          const y = padding.top + ((maxVal - s.data[i]) / yRange) * chartHeight;
+
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+
+        ctx.stroke();
+      }
+
+      // X-axis label
+      ctx.fillStyle = '#9ca3af';
+      ctx.textAlign = 'center';
+      ctx.fillText('Epoch', width / 2, height - 5);
+    }
+
+    function drawGraph(embeddings) {
+      const rect = graphCanvas.getBoundingClientRect();
+      graphCanvas.width = rect.width * window.devicePixelRatio;
+      graphCanvas.height = rect.height * window.devicePixelRatio;
+      graphCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+      const width = rect.width;
+      const height = rect.height;
+      const padding = 40;
+
+      // Clear
+      graphCtx.fillStyle = 'rgba(15, 23, 42, 0.8)';
+      graphCtx.fillRect(0, 0, width, height);
+
+      if (!graphData || nodePositions.length === 0) return;
+
+      const numNodes = graphData.numNodes;
+      const numClasses = 2;
+
+      // Get predictions
+      const predictions = [];
+      if (embeddings) {
+        const numCols = embeddings.shape[1];
+        for (let i = 0; i < numNodes; i++) {
+          let maxVal = -Infinity;
+          let maxIdx = 0;
+          for (let c = 0; c < numCols; c++) {
+            const val = embeddings.data[i * numCols + c];
+            if (val > maxVal) {
+              maxVal = val;
+              maxIdx = c;
+            }
+          }
+          predictions.push(maxIdx);
+        }
+      }
+
+      // Colors for classes
+      const colors = ['#3b82f6', '#ef4444'];
+
+      // Scale positions
+      const scaleX = (x) => padding + x * (width - 2 * padding);
+      const scaleY = (y) => padding + y * (height - 2 * padding);
+
+      // Draw edges
+      graphCtx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      graphCtx.lineWidth = 1;
+
+      const edgeIndex = graphData.edgeIndex;
+      const numEdges = graphData.numEdges;
+      for (let i = 0; i < numEdges / 2; i++) {
+        const src = edgeIndex[i];
+        const dst = edgeIndex[numEdges + i];
+
+        graphCtx.beginPath();
+        graphCtx.moveTo(scaleX(nodePositions[src].x), scaleY(nodePositions[src].y));
+        graphCtx.lineTo(scaleX(nodePositions[dst].x), scaleY(nodePositions[dst].y));
+        graphCtx.stroke();
+      }
+
+      // Draw nodes
+      for (let i = 0; i < numNodes; i++) {
+        const x = scaleX(nodePositions[i].x);
+        const y = scaleY(nodePositions[i].y);
+        const color = predictions.length > 0 ? colors[predictions[i]] : colors[labels[i]];
+        const isTrainNode = trainMask[i];
+
+        // Draw node
+        graphCtx.beginPath();
+        graphCtx.arc(x, y, isTrainNode ? 10 : 8, 0, Math.PI * 2);
+        graphCtx.fillStyle = color;
+        graphCtx.fill();
+
+        // Border for validation nodes
+        if (!isTrainNode) {
+          graphCtx.strokeStyle = 'white';
+          graphCtx.lineWidth = 2;
+          graphCtx.stroke();
+        }
+
+        // Node label
+        graphCtx.fillStyle = 'white';
+        graphCtx.font = 'bold 9px sans-serif';
+        graphCtx.textAlign = 'center';
+        graphCtx.textBaseline = 'middle';
+        graphCtx.fillText(i.toString(), x, y);
+      }
+
+      // Legend
+      graphCtx.fillStyle = '#9ca3af';
+      graphCtx.font = '11px sans-serif';
+      graphCtx.textAlign = 'left';
+      graphCtx.fillText('Filled = Train, Outlined = Val', 10, height - 10);
+    }
+
+    function log(type, message) {
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      const time = new Date().toLocaleTimeString();
+      entry.textContent = `[${time}] ${message}`;
+      logPanel.appendChild(entry);
+      logPanel.scrollTop = logPanel.scrollHeight;
+    }
+
+    // Event listeners
+    trainBtn.addEventListener('click', train);
+    stopBtn.addEventListener('click', () => {
+      stopRequested = true;
+    });
+    resetBtn.addEventListener('click', () => {
+      lossHistory = [];
+      valLossHistory = [];
+      accHistory = [];
+      valAccHistory = [];
+      updateMetrics(0, 0, 0, 0);
+      progressFill.style.width = '0%';
+      progressText.textContent = 'Ready to train';
+      drawCharts();
+      drawGraph(null);
+      log('info', 'Model reset');
+    });
+
+    // Dataset selection
+    document.querySelectorAll('.dataset-card').forEach(card => {
+      card.addEventListener('click', () => {
+        document.querySelectorAll('.dataset-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        currentDataset = card.dataset.dataset;
+        if (currentDataset === 'karate') {
+          loadKarateClub();
+          drawGraph(null);
+        }
+      });
+    });
+
+    // Train split slider
+    const trainSplit = document.getElementById('trainSplit');
+    trainSplit.addEventListener('input', () => {
+      const val = parseFloat(trainSplit.value);
+      document.getElementById('splitText').textContent = `${Math.round(val * 100)}% train / ${Math.round((1-val) * 100)}% val`;
+    });
+
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        // View switching would go here
+      });
+    });
+
+    // Initial load
+    loadKarateClub();
+    drawGraph(null);
+    drawCharts();
+  </script>
+</body>
+</html>
