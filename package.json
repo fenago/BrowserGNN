@@ -28,6 +28,7 @@
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit",
     "example": "vite examples --port 3333",
+    "build:demo": "vite build",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
