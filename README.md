@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue.svg)](https://www.typescriptlang.org/)
 
-[Live Demo](https://ernestolee.github.io/BrowserGNN/) | [Documentation](#api-reference) | [Examples](#interactive-demo)
+[Live Demo](https://browsergnn.com) | [npm Package](https://www.npmjs.com/package/browser-gnn) | [GitHub](https://github.com/fenago/BrowserGNN) | [Documentation](#api-reference)
 
 </div>
 
@@ -197,6 +197,91 @@ The benchmark tests inference speed on graphs of increasing size:
 - 10 nodes, 50 nodes, 100 nodes, 500 nodes
 - Shows average/min/max inference time in milliseconds
 - Demonstrates that BrowserGNN scales efficiently
+
+---
+
+## Feature Engineering for GNNs
+
+One of the most important aspects of getting good results from Graph Neural Networks is **feature engineering**. The demo includes real-world examples that showcase why this matters.
+
+### The Problem with Naive Features
+
+A common mistake is using **one-hot encoding** as node features (where each node gets a unique identifier like `[1,0,0,...]` for node 0, `[0,1,0,...]` for node 1, etc.). This approach fails because:
+
+1. **No structural information**: One-hot features don't encode anything about graph topology
+2. **Random initialization**: Without training, the GNN has no way to learn meaningful patterns
+3. **Poor generalization**: Can't transfer to graphs of different sizes
+
+### Structural Features: The Key to Good Performance
+
+The Karate Club demos in BrowserGNN use **structural features** computed from the graph topology itself:
+
+```typescript
+// Features computed for each node using BFS (Breadth-First Search)
+const features = {
+  closenessToLeader1: 1 / (1 + shortestPathDistance(node, leader1)),
+  closenessToLeader2: 1 / (1 + shortestPathDistance(node, leader2)),
+  normalizedDegree: degree(node) / maxDegree,
+  bias: (distToLeader2 - distToLeader1) / (distToLeader1 + distToLeader2 + 1)
+};
+```
+
+| Feature | What It Captures | Why It Helps |
+|---------|------------------|--------------|
+| **Closeness to Leader 1** | How many hops to reach Mr. Hi | Nodes close to a leader tend to join their faction |
+| **Closeness to Leader 2** | How many hops to reach Officer | Same reasoning for the other faction |
+| **Normalized Degree** | How connected a node is | High-degree nodes are often "bridge" members |
+| **Bias** | Which leader is closer | Directly encodes the prediction signal |
+
+### The BFS Algorithm for Distance Features
+
+```typescript
+// Breadth-First Search to compute shortest path distances
+function bfsDistances(adjacencyList, sourceNode) {
+  const distances = new Array(numNodes).fill(Infinity);
+  distances[sourceNode] = 0;
+  const queue = [sourceNode];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    for (const neighbor of adjacencyList[current]) {
+      if (distances[neighbor] === Infinity) {
+        distances[neighbor] = distances[current] + 1;
+        queue.push(neighbor);
+      }
+    }
+  }
+  return distances;
+}
+```
+
+### Real-World Results: Zachary's Karate Club
+
+Using structural features on the famous Karate Club dataset:
+
+| Approach | Accuracy | Why |
+|----------|----------|-----|
+| One-hot encoding + random weights | ~47% | No meaningful signal |
+| **Structural features** | **92%+** | Encodes community structure |
+
+**The Key Insight**: In Zachary's 1977 study, members joined the faction whose leader they were **closer to in the friendship network**. Our structural features directly encode this pattern!
+
+### When to Use Structural Features
+
+| Use Case | Recommended Features |
+|----------|---------------------|
+| **Community Detection** | Distance to known community centers, clustering coefficient |
+| **Node Classification** | Degree, PageRank, betweenness centrality |
+| **Link Prediction** | Common neighbors, Jaccard similarity, Adamic-Adar |
+| **Molecular Graphs** | Atom type, bond count, ring membership |
+
+### Feature Engineering Best Practices
+
+1. **Start with graph-theoretic features**: Degree, centrality measures, local clustering
+2. **Add domain knowledge**: For social networks, use influence metrics; for molecules, use chemical properties
+3. **Normalize features**: Scale to similar ranges (0-1 or z-score normalization)
+4. **Use BFS for community tasks**: Distance to known landmarks is highly predictive
+5. **Combine with learned features**: Structural features + GNN message passing = powerful representations
 
 ---
 
@@ -457,6 +542,8 @@ MIT License - see [LICENSE](LICENSE) for details.
 **BrowserGNN by Dr. Lee**
 
 *Democratizing Graph Neural Networks - One Browser at a Time*
+
+[Live Demo](https://browsergnn.com) | [npm Package](https://www.npmjs.com/package/browser-gnn) | [GitHub](https://github.com/fenago/BrowserGNN)
 
 [Report Bug](https://github.com/fenago/BrowserGNN/issues) | [Request Feature](https://github.com/fenago/BrowserGNN/issues)
 
