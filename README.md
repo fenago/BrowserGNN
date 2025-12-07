@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue.svg)](https://www.typescriptlang.org/)
 
-[Live Demo](https://browsergnn.com) | [npm Package](https://www.npmjs.com/package/browser-gnn) | [GitHub](https://github.com/fenago/BrowserGNN) | [Documentation](#api-reference)
+[Live Demo](https://browsergnn.com) | [npm Package](https://www.npmjs.com/package/browser-gnn) | [GitHub](https://github.com/fenago/BrowserGNN) | [Tutorial](./tutorial.md) | [FAQ](./FAQ.md) | [Roadmap](./roadmap.md)
 
 </div>
 
@@ -60,6 +60,14 @@ We conducted extensive research to verify BrowserGNN's novelty:
 - **WASM Compatible** - Works on all modern browsers
 - **Developer Friendly** - Familiar PyTorch Geometric-inspired API
 - **Fully Typed** - Complete TypeScript definitions
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| **[Tutorial](./tutorial.md)** | Step-by-step guide from installation to deployment with custom data |
+| **[FAQ](./FAQ.md)** | Common questions about training, performance, integration, and privacy |
+| **[Roadmap](./roadmap.md)** | Development phases, milestones, and future plans |
 
 ## Supported Layers
 
