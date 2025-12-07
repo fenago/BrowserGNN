@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BrowserGNN by Dr. Lee - Demo</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #eee;
+      min-height: 100vh;
+    }
+
+    h1 {
+      text-align: center;
+      color: #00d9ff;
+      font-size: 2.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #888;
+      margin-bottom: 2rem;
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .card h2 {
+      color: #00d9ff;
+      margin-top: 0;
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card h2::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      background: #00d9ff;
+      border-radius: 50%;
+    }
+
+    .status {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .status-item {
+      background: rgba(0, 217, 255, 0.1);
+      padding: 10px 15px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+
+    .status-item strong {
+      color: #00d9ff;
+    }
+
+    button {
+      background: linear-gradient(135deg, #00d9ff 0%, #00b4d8 100%);
+      color: #1a1a2e;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 20px rgba(0, 217, 255, 0.3);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 15px;
+    }
+
+    .output {
+      background: #0d1117;
+      border-radius: 8px;
+      padding: 15px;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      max-height: 400px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+
+    .output .info { color: #58a6ff; }
+    .output .success { color: #3fb950; }
+    .output .warning { color: #d29922; }
+    .output .error { color: #f85149; }
+    .output .time { color: #8b949e; }
+
+    .graph-viz {
+      display: flex;
+      justify-content: center;
+      margin: 20px 0;
+    }
+
+    .graph-viz canvas {
+      background: #0d1117;
+      border-radius: 8px;
+    }
+
+    .model-summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 10px;
+    }
+
+    .layer-card {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 10px 15px;
+      border-radius: 6px;
+      border-left: 3px solid #00d9ff;
+    }
+
+    .layer-card .name {
+      font-weight: 600;
+      color: #00d9ff;
+    }
+
+    .layer-card .params {
+      font-size: 0.8rem;
+      color: #888;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      color: #666;
+    }
+
+    footer a {
+      color: #00d9ff;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>BrowserGNN</h1>
+  <p class="subtitle">by Dr. Lee | Graph Neural Networks in the Browser</p>
+
+  <div class="card">
+    <h2>Backend Status</h2>
+    <div class="status" id="backend-status">
+      <div class="status-item"><strong>Status:</strong> <span id="status">Initializing...</span></div>
+      <div class="status-item"><strong>Backend:</strong> <span id="backend">-</span></div>
+      <div class="status-item"><strong>WebGPU:</strong> <span id="webgpu">-</span></div>
+      <div class="status-item"><strong>WASM:</strong> <span id="wasm">-</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Demo Controls</h2>
+    <div class="controls">
+      <button onclick="runGCNDemo()" id="btn-gcn">Run GCN Demo</button>
+      <button onclick="runGATDemo()" id="btn-gat">Run GAT Demo</button>
+      <button onclick="runSAGEDemo()" id="btn-sage">Run GraphSAGE Demo</button>
+      <button onclick="runBenchmark()" id="btn-bench">Run Benchmark</button>
+    </div>
+    <div class="output" id="output">Click a button to run a demo...</div>
+  </div>
+
+  <div class="card">
+    <h2>Graph Visualization</h2>
+    <div class="graph-viz">
+      <canvas id="graph-canvas" width="400" height="300"></canvas>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Model Architecture</h2>
+    <div class="model-summary" id="model-summary">
+      <div class="layer-card">
+        <div class="name">No model loaded</div>
+        <div class="params">Run a demo to see model details</div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <p>BrowserGNN by Dr. Lee | <a href="https://github.com/drlee/browsergnn">GitHub</a></p>
+  </footer>
+
+  <script type="module">
+    // Import BrowserGNN (adjust path as needed for your build)
+    import {
+      GraphData,
+      GCNConv,
+      GATConv,
+      SAGEConv,
+      Sequential,
+      ReLU,
+      Softmax,
+      Dropout,
+      createBrowserGNN,
+      randomGraph,
+    } from '../src/index.ts';
+
+    // Global state
+    let initialized = false;
+    let currentGraph = null;
+
+    // Output helper
+    function log(message, type = '') {
+      const output = document.getElementById('output');
+      const span = document.createElement('span');
+      span.className = type;
+      span.textContent = message + '\n';
+      output.appendChild(span);
+      output.scrollTop = output.scrollHeight;
+    }
+
+    function clearOutput() {
+      document.getElementById('output').innerHTML = '';
+    }
+
+    // Initialize BrowserGNN
+    async function init() {
+      try {
+        const { backend, info } = await createBrowserGNN();
+
+        document.getElementById('status').textContent = 'Ready';
+        document.getElementById('backend').textContent = backend;
+        document.getElementById('webgpu').textContent = backend === 'webgpu' ? 'Active' : 'Not used';
+        document.getElementById('wasm').textContent = backend === 'wasm' ? 'Active' : 'Not used';
+
+        initialized = true;
+        log('BrowserGNN initialized successfully!', 'success');
+        log(info, 'info');
+      } catch (err) {
+        document.getElementById('status').textContent = 'Error';
+        log(`Initialization failed: ${err.message}`, 'error');
+      }
+    }
+
+    // Create test graph
+    function createTestGraph() {
+      return new GraphData({
+        x: new Float32Array([
+          1.0, 0.5, 0.2,
+          0.8, 0.3, 0.9,
+          0.2, 0.7, 0.4,
+          0.5, 0.1, 0.8,
+          0.9, 0.6, 0.3,
+        ]),
+        numNodes: 5,
+        numFeatures: 3,
+        edgeIndex: new Uint32Array([
+          0, 0, 1, 1, 2, 2, 3, 3, 4, 4,
+          1, 2, 0, 2, 1, 3, 2, 4, 0, 3,
+        ]),
+        numEdges: 10,
+      });
+    }
+
+    // Visualize graph
+    function visualizeGraph(graph) {
+      const canvas = document.getElementById('graph-canvas');
+      const ctx = canvas.getContext('2d');
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Calculate node positions in a circle
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      const radius = 100;
+
+      const nodePositions = [];
+      for (let i = 0; i < graph.numNodes; i++) {
+        const angle = (2 * Math.PI * i) / graph.numNodes - Math.PI / 2;
+        nodePositions.push({
+          x: centerX + radius * Math.cos(angle),
+          y: centerY + radius * Math.sin(angle),
+        });
+      }
+
+      // Draw edges
+      ctx.strokeStyle = '#00d9ff';
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = 0.3;
+
+      for (let i = 0; i < graph.numEdges; i++) {
+        const src = graph.edgeIndex[i];
+        const dst = graph.edgeIndex[graph.numEdges + i];
+
+        ctx.beginPath();
+        ctx.moveTo(nodePositions[src].x, nodePositions[src].y);
+        ctx.lineTo(nodePositions[dst].x, nodePositions[dst].y);
+        ctx.stroke();
+      }
+
+      // Draw nodes
+      ctx.globalAlpha = 1;
+      for (let i = 0; i < graph.numNodes; i++) {
+        const pos = nodePositions[i];
+
+        // Node circle
+        ctx.fillStyle = '#00d9ff';
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, 20, 0, 2 * Math.PI);
+        ctx.fill();
+
+        // Node label
+        ctx.fillStyle = '#1a1a2e';
+        ctx.font = 'bold 14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(i.toString(), pos.x, pos.y);
+      }
+
+      currentGraph = graph;
+    }
+
+    // Update model summary
+    function updateModelSummary(layers) {
+      const container = document.getElementById('model-summary');
+      container.innerHTML = layers.map((layer, i) => `
+        <div class="layer-card">
+          <div class="name">Layer ${i + 1}: ${layer.name}</div>
+          <div class="params">${layer.params} parameters</div>
+        </div>
+      `).join('');
+    }
+
+    // Demo functions
+    window.runGCNDemo = async function() {
+      if (!initialized) {
+        log('Please wait for initialization...', 'warning');
+        return;
+      }
+
+      clearOutput();
+      log('=== GCN Demo ===', 'info');
+
+      const graph = createTestGraph();
+      visualizeGraph(graph);
+
+      log(`Graph: ${graph.numNodes} nodes, ${graph.numEdges} edges`, 'info');
+
+      const model = new Sequential([
+        new GCNConv({ inChannels: 3, outChannels: 16 }),
+        new ReLU(),
+        new GCNConv({ inChannels: 16, outChannels: 8 }),
+        new ReLU(),
+        new GCNConv({ inChannels: 8, outChannels: 2 }),
+        new Softmax(),
+      ]);
+
+      model.eval();
+
+      updateModelSummary([
+        { name: 'GCNConv(3→16)', params: 3 * 16 + 16 },
+        { name: 'ReLU', params: 0 },
+        { name: 'GCNConv(16→8)', params: 16 * 8 + 8 },
+        { name: 'ReLU', params: 0 },
+        { name: 'GCNConv(8→2)', params: 8 * 2 + 2 },
+        { name: 'Softmax', params: 0 },
+      ]);
+
+      const start = performance.now();
+      const output = await model.forward(graph);
+      const elapsed = performance.now() - start;
+
+      log(`\nInference time: ${elapsed.toFixed(2)}ms`, 'time');
+      log(`\nNode predictions (class probabilities):`, 'success');
+
+      for (let i = 0; i < output.numNodes; i++) {
+        const p0 = output.x.get(i, 0).toFixed(4);
+        const p1 = output.x.get(i, 1).toFixed(4);
+        log(`  Node ${i}: Class 0: ${p0}, Class 1: ${p1}`);
+      }
+    };
+
+    window.runGATDemo = async function() {
+      if (!initialized) {
+        log('Please wait for initialization...', 'warning');
+        return;
+      }
+
+      clearOutput();
+      log('=== GAT Demo ===', 'info');
+
+      const graph = createTestGraph();
+      visualizeGraph(graph);
+
+      log(`Graph: ${graph.numNodes} nodes, ${graph.numEdges} edges`, 'info');
+
+      const model = new Sequential([
+        new GATConv({ inChannels: 3, outChannels: 8, heads: 2 }),
+        new ReLU(),
+        new GATConv({ inChannels: 16, outChannels: 2, heads: 1, concat: false }),
+        new Softmax(),
+      ]);
+
+      model.eval();
+
+      updateModelSummary([
+        { name: 'GATConv(3→8, heads=2)', params: 3 * 16 + 2 * 2 * 8 + 16 },
+        { name: 'ReLU', params: 0 },
+        { name: 'GATConv(16→2, heads=1)', params: 16 * 2 + 2 * 2 + 2 },
+        { name: 'Softmax', params: 0 },
+      ]);
+
+      const start = performance.now();
+      const output = await model.forward(graph);
+      const elapsed = performance.now() - start;
+
+      log(`\nInference time: ${elapsed.toFixed(2)}ms`, 'time');
+      log(`\nAttention-weighted predictions:`, 'success');
+
+      for (let i = 0; i < output.numNodes; i++) {
+        const p0 = output.x.get(i, 0).toFixed(4);
+        const p1 = output.x.get(i, 1).toFixed(4);
+        log(`  Node ${i}: Class 0: ${p0}, Class 1: ${p1}`);
+      }
+    };
+
+    window.runSAGEDemo = async function() {
+      if (!initialized) {
+        log('Please wait for initialization...', 'warning');
+        return;
+      }
+
+      clearOutput();
+      log('=== GraphSAGE Demo ===', 'info');
+
+      const graph = createTestGraph();
+      visualizeGraph(graph);
+
+      log(`Graph: ${graph.numNodes} nodes, ${graph.numEdges} edges`, 'info');
+
+      const model = new Sequential([
+        new SAGEConv({ inChannels: 3, outChannels: 16, aggregator: 'mean' }),
+        new ReLU(),
+        new SAGEConv({ inChannels: 16, outChannels: 8, aggregator: 'max' }),
+        new ReLU(),
+        new SAGEConv({ inChannels: 8, outChannels: 2, aggregator: 'mean' }),
+        new Softmax(),
+      ]);
+
+      model.eval();
+
+      updateModelSummary([
+        { name: 'SAGEConv(3→16, mean)', params: 3 * 16 + 3 * 16 + 16 },
+        { name: 'ReLU', params: 0 },
+        { name: 'SAGEConv(16→8, max)', params: 16 * 8 + 16 * 8 + 8 },
+        { name: 'ReLU', params: 0 },
+        { name: 'SAGEConv(8→2, mean)', params: 8 * 2 + 8 * 2 + 2 },
+        { name: 'Softmax', params: 0 },
+      ]);
+
+      const start = performance.now();
+      const output = await model.forward(graph);
+      const elapsed = performance.now() - start;
+
+      log(`\nInference time: ${elapsed.toFixed(2)}ms`, 'time');
+      log(`\nSampling-based predictions:`, 'success');
+
+      for (let i = 0; i < output.numNodes; i++) {
+        const p0 = output.x.get(i, 0).toFixed(4);
+        const p1 = output.x.get(i, 1).toFixed(4);
+        log(`  Node ${i}: Class 0: ${p0}, Class 1: ${p1}`);
+      }
+    };
+
+    window.runBenchmark = async function() {
+      if (!initialized) {
+        log('Please wait for initialization...', 'warning');
+        return;
+      }
+
+      clearOutput();
+      log('=== Benchmark ===', 'info');
+
+      const sizes = [10, 50, 100, 500];
+
+      for (const numNodes of sizes) {
+        const graph = randomGraph(numNodes, 0.2, 32);
+
+        log(`\nGraph: ${numNodes} nodes, ${graph.numEdges} edges`, 'info');
+
+        const model = new Sequential([
+          new GCNConv({ inChannels: 32, outChannels: 64 }),
+          new ReLU(),
+          new GCNConv({ inChannels: 64, outChannels: 32 }),
+          new ReLU(),
+          new GCNConv({ inChannels: 32, outChannels: 10 }),
+        ]);
+
+        model.eval();
+
+        // Warmup
+        await model.forward(graph);
+
+        // Benchmark
+        const times = [];
+        for (let i = 0; i < 5; i++) {
+          const start = performance.now();
+          await model.forward(graph);
+          times.push(performance.now() - start);
+        }
+
+        const avg = times.reduce((a, b) => a + b, 0) / times.length;
+        const min = Math.min(...times);
+        const max = Math.max(...times);
+
+        log(`  Avg: ${avg.toFixed(2)}ms, Min: ${min.toFixed(2)}ms, Max: ${max.toFixed(2)}ms`, 'time');
+      }
+
+      log('\nBenchmark complete!', 'success');
+    };
+
+    // Initialize on load
+    init();
+  </script>
+</body>
+</html>
