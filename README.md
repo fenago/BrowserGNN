@@ -61,6 +61,9 @@
 ## Installation
 
 ```bash
+mkdir my-gnn-project
+cd my-gnn-project
+npm init -y
 npm install browser-gnn
 ```
 
@@ -78,7 +81,24 @@ Or include via CDN:
 
 ---
 
-## Quick Start
+## Quick Start (CLI)
+
+The easiest way to get started:
+
+```bash
+npx browser-gnn init    # Creates a starter file
+node gnn-example.mjs    # Run it!
+```
+
+**Other CLI commands:**
+```bash
+npx browser-gnn         # Show help
+npx browser-gnn demo    # Open live demo in browser
+```
+
+---
+
+## Quick Start (Code)
 
 ```typescript
 import { GraphData, GCNConv, Sequential, ReLU, Softmax } from 'browser-gnn';
