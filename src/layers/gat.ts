@@ -13,6 +13,7 @@
 import { Tensor } from '../core/tensor';
 import { GraphData } from '../core/graph';
 import { MessagePassing } from '../core/sparse';
+import { GPUTensor, isGPUAvailable } from '../core/gpu-sparse';
 import { Module } from '../nn/module';
 
 export interface GATConvConfig {
@@ -224,6 +225,160 @@ export class GATConv extends Module {
       }
     } else {
       // Average heads: [numNodes, outChannels]
+      for (let e = 0; e < numEdges; e++) {
+        const src = srcNodes[e]!;
+        const dst = dstNodes[e]!;
+
+        for (let h = 0; h < this.heads; h++) {
+          const attn = alphaExp[e * this.heads + h]!;
+          const headOffset = h * this.outChannels;
+
+          for (let f = 0; f < this.outChannels; f++) {
+            const srcVal = H.data[src * this.heads * this.outChannels + headOffset + f]!;
+            const outIdx = dst * this.outChannels + f;
+            output[outIdx] = (output[outIdx] ?? 0) + attn * srcVal / this.heads;
+          }
+        }
+      }
+    }
+
+    // Step 5: Add bias
+    if (this.useBias) {
+      const bias = this._parameters.get('bias')!.tensor;
+      for (let i = 0; i < numNodes; i++) {
+        for (let f = 0; f < outputDim; f++) {
+          const outIdx = i * outputDim + f;
+          output[outIdx] = (output[outIdx] ?? 0) + bias.data[f]!;
+        }
+      }
+    }
+
+    const outputTensor = new Tensor(output, [numNodes, outputDim]);
+    return input.withFeatures(outputTensor);
+  }
+
+  /**
+   * Async forward pass with GPU acceleration
+   *
+   * Uses WebGPU compute shaders when available for:
+   * - Linear transformation (matmul)
+   * - Attention score computation
+   */
+  async forwardAsync(input: GraphData): Promise<GraphData> {
+    if (!isGPUAvailable()) {
+      return this.forward(input);
+    }
+
+    const { x, numNodes } = input;
+
+    if (x.shape[1] !== this.inChannels) {
+      throw new Error(`GATConv: Expected ${this.inChannels} input channels, got ${x.shape[1]}`);
+    }
+
+    // Add self-loops if needed
+    let processedGraph = input;
+    if (this.addSelfLoops && !input.hasSelfLoops()) {
+      processedGraph = input.addSelfLoops();
+    }
+
+    const weight = this._parameters.get('weight')!.tensor;
+    const attSrc = this._parameters.get('att_src')!.tensor;
+    const attDst = this._parameters.get('att_dst')!.tensor;
+
+    const numEdges = processedGraph.numEdges;
+    const srcNodes = processedGraph.edgeIndex.slice(0, numEdges);
+    const dstNodes = processedGraph.edgeIndex.slice(numEdges);
+
+    // Step 1: GPU-accelerated linear transformation
+    // H = X @ W, shape: [numNodes, heads * outChannels]
+    const H = await GPUTensor.matmul(x, weight);
+
+    // Step 2: Compute attention scores (CPU for now - attention is complex)
+    // Future: implement GPU attention kernel
+    const alpha = new Float32Array(numEdges * this.heads);
+
+    for (let e = 0; e < numEdges; e++) {
+      const src = srcNodes[e]!;
+      const dst = dstNodes[e]!;
+
+      for (let h = 0; h < this.heads; h++) {
+        const headOffset = h * this.outChannels;
+        let score = 0;
+
+        for (let f = 0; f < this.outChannels; f++) {
+          const hSrc = H.data[src * this.heads * this.outChannels + headOffset + f]!;
+          const hDst = H.data[dst * this.heads * this.outChannels + headOffset + f]!;
+          score +=
+            attSrc.data[h * this.outChannels + f]! * hSrc +
+            attDst.data[h * this.outChannels + f]! * hDst;
+        }
+
+        // LeakyReLU
+        if (score < 0) {
+          score *= this.negativeSlope;
+        }
+
+        alpha[e * this.heads + h] = score;
+      }
+    }
+
+    // Step 3: Softmax attention
+    const alphaExp = new Float32Array(alpha.length);
+    const alphaSum = new Float32Array(numNodes * this.heads);
+
+    for (let e = 0; e < numEdges; e++) {
+      const dst = dstNodes[e]!;
+      for (let h = 0; h < this.heads; h++) {
+        const expVal = Math.exp(alpha[e * this.heads + h]! - 10);
+        alphaExp[e * this.heads + h] = expVal;
+        const sumIdx = dst * this.heads + h;
+        alphaSum[sumIdx] = (alphaSum[sumIdx] ?? 0) + expVal;
+      }
+    }
+
+    for (let e = 0; e < numEdges; e++) {
+      const dst = dstNodes[e]!;
+      for (let h = 0; h < this.heads; h++) {
+        const sum = alphaSum[dst * this.heads + h]!;
+        if (sum > 0) {
+          const expIdx = e * this.heads + h;
+          alphaExp[expIdx] = (alphaExp[expIdx] ?? 0) / sum;
+        }
+      }
+    }
+
+    // Apply dropout
+    if (this._training && this.dropout > 0) {
+      for (let i = 0; i < alphaExp.length; i++) {
+        if (Math.random() < this.dropout) {
+          alphaExp[i] = 0;
+        } else {
+          alphaExp[i] = (alphaExp[i] ?? 0) / (1 - this.dropout);
+        }
+      }
+    }
+
+    // Step 4: Weighted aggregation
+    const outputDim = this.concat ? this.heads * this.outChannels : this.outChannels;
+    const output = new Float32Array(numNodes * outputDim);
+
+    if (this.concat) {
+      for (let e = 0; e < numEdges; e++) {
+        const src = srcNodes[e]!;
+        const dst = dstNodes[e]!;
+
+        for (let h = 0; h < this.heads; h++) {
+          const attn = alphaExp[e * this.heads + h]!;
+          const headOffset = h * this.outChannels;
+
+          for (let f = 0; f < this.outChannels; f++) {
+            const srcVal = H.data[src * this.heads * this.outChannels + headOffset + f]!;
+            const outIdx = dst * outputDim + headOffset + f;
+            output[outIdx] = (output[outIdx] ?? 0) + attn * srcVal;
+          }
+        }
+      }
+    } else {
       for (let e = 0; e < numEdges; e++) {
         const src = srcNodes[e]!;
         const dst = dstNodes[e]!;

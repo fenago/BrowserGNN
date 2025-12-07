@@ -4,9 +4,16 @@
  *
  * Efficient sparse matrix operations for graph neural networks.
  * Supports COO, CSR, and CSC formats.
+ * WASM-accelerated for optimal performance.
  */
 
 import { Tensor } from './tensor';
+import {
+  wasmScatterAdd,
+  wasmScatterMean,
+  wasmScatterMax,
+  wasmGather,
+} from '../backend/wasm';
 
 /**
  * Sparse matrix in COO (Coordinate) format
@@ -377,11 +384,13 @@ export class SparseCSR {
 
 /**
  * Message passing utilities for GNNs
+ * WASM-accelerated with loop unrolling for optimal performance
  */
 export class MessagePassing {
   /**
    * Scatter-add operation: aggregate values by target indices
    * Used for message aggregation in GNNs
+   * Uses WASM kernel with 8x loop unrolling
    *
    * @param src Source values [numMessages, features]
    * @param index Target indices [numMessages]
@@ -397,49 +406,36 @@ export class MessagePassing {
     }
 
     const numFeatures = src.shape[1]!;
-    const result = new Float32Array(numNodes * numFeatures);
 
-    for (let i = 0; i < index.length; i++) {
-      const targetNode = index[i]!;
-      for (let f = 0; f < numFeatures; f++) {
-        const idx = targetNode * numFeatures + f;
-        result[idx] = (result[idx] ?? 0) + src.data[i * numFeatures + f]!;
-      }
-    }
+    // Use WASM-optimized kernel
+    const result = wasmScatterAdd(src.data, index, numNodes, numFeatures);
 
     return new Tensor(result, [numNodes, numFeatures]);
   }
 
   /**
    * Scatter-mean operation: average values by target indices
+   * Uses WASM kernel with 8x loop unrolling
    */
   static scatterMean(src: Tensor, index: Uint32Array, numNodes: number): Tensor {
-    const sumResult = this.scatterAdd(src, index, numNodes);
+    if (src.ndim !== 2) {
+      throw new Error('Source must be 2D tensor');
+    }
+    if (src.shape[0] !== index.length) {
+      throw new Error('Source rows must match index length');
+    }
+
     const numFeatures = src.shape[1]!;
 
-    // Count occurrences
-    const counts = new Uint32Array(numNodes);
-    for (let i = 0; i < index.length; i++) {
-      const targetIdx = index[i]!;
-      counts[targetIdx] = (counts[targetIdx] ?? 0) + 1;
-    }
+    // Use WASM-optimized kernel
+    const result = wasmScatterMean(src.data, index, numNodes, numFeatures);
 
-    // Divide by counts
-    for (let i = 0; i < numNodes; i++) {
-      const count = counts[i] ?? 0;
-      if (count > 0) {
-        for (let f = 0; f < numFeatures; f++) {
-          const idx = i * numFeatures + f;
-          sumResult.data[idx] = (sumResult.data[idx] ?? 0) / count;
-        }
-      }
-    }
-
-    return sumResult;
+    return new Tensor(result, [numNodes, numFeatures]);
   }
 
   /**
    * Scatter-max operation: max values by target indices
+   * Uses WASM kernel with 8x loop unrolling
    */
   static scatterMax(src: Tensor, index: Uint32Array, numNodes: number): Tensor {
     if (src.ndim !== 2) {
@@ -447,25 +443,9 @@ export class MessagePassing {
     }
 
     const numFeatures = src.shape[1]!;
-    const result = new Float32Array(numNodes * numFeatures).fill(-Infinity);
 
-    for (let i = 0; i < index.length; i++) {
-      const targetNode = index[i]!;
-      for (let f = 0; f < numFeatures; f++) {
-        const srcVal = src.data[i * numFeatures + f]!;
-        const idx = targetNode * numFeatures + f;
-        if (srcVal > result[idx]!) {
-          result[idx] = srcVal;
-        }
-      }
-    }
-
-    // Replace -Infinity with 0 for nodes with no messages
-    for (let i = 0; i < result.length; i++) {
-      if (result[i] === -Infinity) {
-        result[i] = 0;
-      }
-    }
+    // Use WASM-optimized kernel
+    const result = wasmScatterMax(src.data, index, numNodes, numFeatures);
 
     return new Tensor(result, [numNodes, numFeatures]);
   }
@@ -473,6 +453,7 @@ export class MessagePassing {
   /**
    * Gather operation: select values by indices
    * Used to gather source node features for each edge
+   * Uses WASM kernel with 8x loop unrolling
    *
    * @param src Source values [numNodes, features]
    * @param index Indices to gather [numIndices]
@@ -484,14 +465,9 @@ export class MessagePassing {
     }
 
     const numFeatures = src.shape[1]!;
-    const result = new Float32Array(index.length * numFeatures);
 
-    for (let i = 0; i < index.length; i++) {
-      const srcNode = index[i]!;
-      for (let f = 0; f < numFeatures; f++) {
-        result[i * numFeatures + f] = src.data[srcNode * numFeatures + f]!;
-      }
-    }
+    // Use WASM-optimized kernel
+    const result = wasmGather(src.data, index, numFeatures);
 
     return new Tensor(result, [index.length, numFeatures]);
   }

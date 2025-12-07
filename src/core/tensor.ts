@@ -4,7 +4,10 @@
  *
  * Provides fundamental tensor operations for graph neural networks
  * with support for both CPU (TypedArrays) and GPU (WebGPU) backends.
+ * WASM-accelerated for optimal performance.
  */
+
+import { wasmMatmul, wasmRelu, wasmAdd } from '../backend/wasm';
 
 export type TypedArray = Float32Array | Float64Array | Int32Array | Uint32Array;
 export type DataType = 'float32' | 'float64' | 'int32' | 'uint32';
@@ -181,6 +184,7 @@ export class Tensor {
 
   /**
    * Element-wise addition
+   * Uses WASM kernel with 8x loop unrolling for tensor-tensor addition
    */
   add(other: Tensor | number): Tensor {
     if (typeof other === 'number') {
@@ -194,10 +198,8 @@ export class Tensor {
     if (!this.shapeEquals(other)) {
       throw new Error(`Shape mismatch: ${this.shape} vs ${other.shape}`);
     }
-    const result = new Float32Array(this.size);
-    for (let i = 0; i < this.size; i++) {
-      result[i] = this.data[i]! + other.data[i]!;
-    }
+    // Use WASM-optimized kernel for tensor-tensor addition
+    const result = wasmAdd(this.data, other.data);
     return new Tensor(result, this.shape, this.dtype);
   }
 
@@ -269,6 +271,7 @@ export class Tensor {
 
   /**
    * Matrix multiplication for 2D tensors
+   * Uses WASM kernel with 4x loop unrolling for optimal performance
    */
   matmul(other: Tensor): Tensor {
     if (this.ndim !== 2 || other.ndim !== 2) {
@@ -280,16 +283,8 @@ export class Tensor {
       throw new Error(`Shape mismatch for matmul: ${this.shape} @ ${other.shape}`);
     }
 
-    const result = new Float32Array(m! * n!);
-    for (let i = 0; i < m!; i++) {
-      for (let j = 0; j < n!; j++) {
-        let sum = 0;
-        for (let k = 0; k < k1!; k++) {
-          sum += this.data[i * k1! + k]! * other.data[k * n! + j]!;
-        }
-        result[i * n! + j] = sum;
-      }
-    }
+    // Use WASM-optimized kernel
+    const result = wasmMatmul(this.data, other.data, m!, k1!, n!);
     return new Tensor(result, [m!, n!], this.dtype);
   }
 
@@ -381,12 +376,11 @@ export class Tensor {
 
   /**
    * Apply ReLU activation
+   * Uses WASM kernel with 8x loop unrolling for optimal performance
    */
   relu(): Tensor {
-    const result = new Float32Array(this.size);
-    for (let i = 0; i < this.size; i++) {
-      result[i] = Math.max(0, this.data[i]!);
-    }
+    // Use WASM-optimized kernel
+    const result = wasmRelu(this.data);
     return new Tensor(result, this.shape, this.dtype);
   }
 

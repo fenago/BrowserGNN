@@ -21,3 +21,10 @@ export {
   MessagePassing,
   computeGCNNorm,
 } from './sparse';
+
+export {
+  GPUSparse,
+  GPUTensor,
+  isGPUAvailable,
+  getGPUStats,
+} from './gpu-sparse';

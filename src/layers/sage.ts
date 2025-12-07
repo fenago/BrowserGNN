@@ -16,6 +16,7 @@
 import { Tensor } from '../core/tensor';
 import { GraphData } from '../core/graph';
 import { MessagePassing } from '../core/sparse';
+import { GPUSparse, GPUTensor, isGPUAvailable } from '../core/gpu-sparse';
 import { Module } from '../nn/module';
 
 export type SAGEAggregator = 'mean' | 'max' | 'sum' | 'pool';
@@ -195,6 +196,115 @@ export class SAGEConv extends Module {
     }
 
     // Step 6: L2 normalize output (optional)
+    if (this.normalize) {
+      for (let i = 0; i < numNodes; i++) {
+        let norm = 0;
+        for (let f = 0; f < this.outChannels; f++) {
+          const val = output.data[i * this.outChannels + f]!;
+          norm += val * val;
+        }
+        norm = Math.sqrt(norm);
+        if (norm > 0) {
+          for (let f = 0; f < this.outChannels; f++) {
+            const idx = i * this.outChannels + f;
+            output.data[idx] = (output.data[idx] ?? 0) / norm;
+          }
+        }
+      }
+    }
+
+    return input.withFeatures(output);
+  }
+
+  /**
+   * Async forward pass with GPU acceleration
+   *
+   * Uses WebGPU compute shaders when available.
+   */
+  async forwardAsync(input: GraphData): Promise<GraphData> {
+    if (!isGPUAvailable()) {
+      return this.forward(input);
+    }
+
+    const { x, edgeIndex, numNodes, numEdges } = input;
+
+    if (x.shape[1] !== this.inChannels) {
+      throw new Error(`SAGEConv: Expected ${this.inChannels} input channels, got ${x.shape[1]}`);
+    }
+
+    const srcNodes = edgeIndex.slice(0, numEdges);
+    const dstNodes = edgeIndex.slice(numEdges);
+
+    // Step 1: GPU-accelerated gather
+    const srcFeatures = await GPUSparse.gather(x, srcNodes);
+
+    // Step 2: Apply aggregator
+    let aggregatedFeatures: Tensor;
+
+    switch (this.aggregator) {
+      case 'mean':
+        aggregatedFeatures = await GPUSparse.scatterMean(srcFeatures, dstNodes, numNodes);
+        break;
+
+      case 'max':
+        aggregatedFeatures = await GPUSparse.scatterMax(srcFeatures, dstNodes, numNodes);
+        break;
+
+      case 'sum':
+        aggregatedFeatures = await GPUSparse.scatterAdd(srcFeatures, dstNodes, numNodes);
+        break;
+
+      case 'pool': {
+        // Pool aggregator uses CPU for MLP (typically small operation)
+        const poolWeight = this._parameters.get('pool_weight')!.tensor;
+        const poolBias = this._parameters.get('pool_bias')!.tensor;
+
+        const projected = new Float32Array(srcFeatures.size);
+        for (let i = 0; i < numEdges; i++) {
+          for (let j = 0; j < this.inChannels; j++) {
+            let sum = poolBias.data[j]!;
+            for (let k = 0; k < this.inChannels; k++) {
+              sum += srcFeatures.data[i * this.inChannels + k]! * poolWeight.data[k * this.inChannels + j]!;
+            }
+            projected[i * this.inChannels + j] = Math.max(0, sum);
+          }
+        }
+        const projectedTensor = new Tensor(projected, srcFeatures.shape);
+        aggregatedFeatures = await GPUSparse.scatterMax(projectedTensor, dstNodes, numNodes);
+        break;
+      }
+
+      default:
+        throw new Error(`Unknown aggregator: ${this.aggregator}`);
+    }
+
+    // Step 3: GPU-accelerated matrix multiplications
+    const linNeighbor = this._parameters.get('lin_neighbor')!.tensor;
+    const neighborTransformed = await GPUTensor.matmul(aggregatedFeatures, linNeighbor);
+
+    // Step 4: Combine with self features
+    let output: Tensor;
+
+    if (this.rootWeight) {
+      const linSelf = this._parameters.get('lin_self')!.tensor;
+      const selfTransformed = await GPUTensor.matmul(x, linSelf);
+      output = await GPUTensor.add(selfTransformed, neighborTransformed);
+    } else {
+      output = neighborTransformed;
+    }
+
+    // Step 5: Add bias
+    if (this.useBias) {
+      const bias = this._parameters.get('bias')!.tensor;
+      for (let i = 0; i < numNodes; i++) {
+        for (let f = 0; f < this.outChannels; f++) {
+          const idx = i * this.outChannels + f;
+          output.data[idx] = (output.data[idx] ?? 0) + bias.data[f]!;
+        }
+      }
+    }
+
+    // Step 6: L2 normalize (CPU - typically fast)
     if (this.normalize) {
       for (let i = 0; i < numNodes; i++) {
         let norm = 0;

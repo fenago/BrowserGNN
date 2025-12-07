@@ -31,6 +31,11 @@ export {
   SparseCSR,
   MessagePassing,
   computeGCNNorm,
+  // GPU-accelerated operations
+  GPUSparse,
+  GPUTensor,
+  isGPUAvailable,
+  getGPUStats,
 } from './core';
 
 // Neural network primitives
@@ -75,6 +80,18 @@ export {
   type BackendCapabilities,
   type BackendConfig,
 } from './backend';
+
+// Benchmarks
+export {
+  benchmarkGCN,
+  benchmarkSAGE,
+  benchmarkGAT,
+  runAllBenchmarks,
+  quickBenchmark,
+  formatBenchmarkTable,
+  type BenchmarkResult,
+  type BenchmarkConfig,
+} from './benchmarks';
 
 // Convenience function to create and initialize BrowserGNN
 export async function createBrowserGNN(config?: {

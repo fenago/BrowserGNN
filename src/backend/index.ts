@@ -6,6 +6,9 @@
  * Supports WebGPU (preferred) with WASM/CPU fallback.
  */
 
+import { WebGPUComputeManager } from './webgpu';
+import { WASMKernels } from './wasm';
+
 export type BackendType = 'webgpu' | 'wasm' | 'cpu';
 
 export interface BackendCapabilities {
@@ -30,6 +33,8 @@ class BackendManager {
   private currentBackend: BackendType = 'cpu';
   private capabilities: BackendCapabilities | null = null;
   private gpuDevice: GPUDevice | null = null;
+  private computeManager: WebGPUComputeManager | null = null;
+  private wasmKernels: WASMKernels | null = null;
   private config: BackendConfig = {};
 
   private constructor() {}
@@ -108,6 +113,7 @@ class BackendManager {
         await this.initWebGPU();
         this.currentBackend = 'webgpu';
       } else if (this.config.preferredBackend === 'wasm' && caps.wasm) {
+        this.initWASM();
         this.currentBackend = 'wasm';
       } else {
         this.currentBackend = 'cpu';
@@ -118,6 +124,7 @@ class BackendManager {
         await this.initWebGPU();
         this.currentBackend = 'webgpu';
       } else if (caps.wasm) {
+        this.initWASM();
         this.currentBackend = 'wasm';
       } else {
         this.currentBackend = 'cpu';
@@ -158,12 +165,27 @@ class BackendManager {
       requiredLimits,
     });
 
+    // Create compute manager
+    this.computeManager = new WebGPUComputeManager(this.gpuDevice, {
+      maxBufferSize: this.config.memoryLimit,
+      enableProfiling: this.config.enableProfiling,
+    });
+
     // Handle device loss
     this.gpuDevice.lost.then(info => {
       console.error(`WebGPU device lost: ${info.message}`);
+      this.computeManager?.destroy();
+      this.computeManager = null;
       this.gpuDevice = null;
       this.initialized = false;
     });
+  }
+
+  /**
+   * Initialize WASM backend
+   */
+  private initWASM(): void {
+    this.wasmKernels = WASMKernels.getInstance();
   }
 
   /**
@@ -178,6 +200,20 @@ class BackendManager {
    */
   getGPUDevice(): GPUDevice | null {
     return this.gpuDevice;
+  }
+
+  /**
+   * Get WebGPU compute manager (if available)
+   */
+  getComputeManager(): WebGPUComputeManager | null {
+    return this.computeManager;
+  }
+
+  /**
+   * Get WASM kernels (if available)
+   */
+  getWASMKernels(): WASMKernels | null {
+    return this.wasmKernels;
   }
 
   /**
@@ -209,6 +245,9 @@ class BackendManager {
    */
   reset(): void {
     this.initialized = false;
+    this.computeManager?.destroy();
+    this.computeManager = null;
+    this.wasmKernels = null;
     this.gpuDevice?.destroy();
     this.gpuDevice = null;
     this.capabilities = null;
@@ -247,3 +286,42 @@ export async function checkCapabilities(): Promise<BackendCapabilities> {
 export function getBackendInfo(): string {
   return backend.getInfo();
 }
+
+/**
+ * Get WebGPU compute manager (if available)
+ */
+export function getComputeManager(): WebGPUComputeManager | null {
+  return backend.getComputeManager();
+}
+
+/**
+ * Get GPU device (if available)
+ */
+export function getGPUDevice(): GPUDevice | null {
+  return backend.getGPUDevice();
+}
+
+/**
+ * Get WASM kernels (if available)
+ */
+export function getWASMKernels(): WASMKernels | null {
+  return backend.getWASMKernels();
+}
+
+// Re-export WebGPU module types
+export { WebGPUComputeManager } from './webgpu';
+export type { ComputePipelineConfig, BufferDescriptor, ShaderName } from './webgpu';
+
+// Re-export WASM module types
+export { WASMKernels } from './wasm';
+export {
+  wasmMatmul,
+  wasmScatterAdd,
+  wasmScatterMean,
+  wasmScatterMax,
+  wasmGather,
+  wasmRelu,
+  wasmAdd,
+  wasmSpmv,
+  wasmSpmm,
+} from './wasm';
