@@ -149,11 +149,24 @@ Enable **training and fine-tuning** of GNN models directly in the browser, compl
 | Early stopping | ⏳ Planned | Prevent overfitting |
 | Checkpointing | ⏳ Planned | Save/resume training |
 
+#### 3.5 Fine-Tuning Pre-trained Models
+**Status:** ⏳ Planned
+
+| Task | Status | Description |
+|------|--------|-------------|
+| Weight loading from PyG | ⏳ Planned | Import pre-trained PyTorch Geometric weights |
+| Frozen layer support | ⏳ Planned | Freeze backbone, train classifier head |
+| Transfer learning API | ⏳ Planned | Simple API for domain adaptation |
+| Model adaptation | ⏳ Planned | Adapt models to new graph structures |
+
+**Use case:** Load a GCN pre-trained on citation networks, fine-tune on your domain-specific graph with minimal data.
+
 ### Phase 3 Success Criteria
 
 - [ ] Train a 2-layer GCN on Cora dataset in browser
 - [ ] Achieve comparable accuracy to PyTorch Geometric
 - [ ] Training time within 5x of PyTorch (CPU)
+- [ ] Fine-tune a pre-trained model on custom dataset
 - [ ] Full training example in documentation
 
 ---
