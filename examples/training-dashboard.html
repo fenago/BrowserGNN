@@ -219,6 +219,54 @@
       height: 100%;
       border-radius: 8px;
       background: rgba(15, 23, 42, 0.6);
+      cursor: crosshair;
+    }
+
+    /* Tooltip */
+    .tooltip {
+      position: absolute;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid rgba(96, 165, 250, 0.5);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.85em;
+      color: #e0e0e0;
+      pointer-events: none;
+      z-index: 1000;
+      display: none;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      max-width: 250px;
+    }
+
+    .tooltip-title {
+      font-weight: bold;
+      color: #60a5fa;
+      margin-bottom: 6px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 4px;
+    }
+
+    .tooltip-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 4px;
+    }
+
+    .tooltip-label {
+      color: #9ca3af;
+    }
+
+    .tooltip-value {
+      font-weight: 500;
+    }
+
+    .tooltip-correct {
+      color: #10b981;
+    }
+
+    .tooltip-incorrect {
+      color: #ef4444;
     }
 
     /* Log Panel */
@@ -300,11 +348,29 @@
       width: 0%;
     }
 
+    .progress-fill.complete {
+      background: linear-gradient(90deg, #10b981, #059669);
+    }
+
+    .progress-fill.stopped {
+      background: linear-gradient(90deg, #f59e0b, #d97706);
+    }
+
     .progress-text {
       font-size: 0.8em;
       color: #9ca3af;
       margin-top: 6px;
       text-align: center;
+    }
+
+    .progress-text.complete {
+      color: #10b981;
+      font-weight: 600;
+    }
+
+    .progress-text.stopped {
+      color: #f59e0b;
+      font-weight: 600;
     }
 
     /* Tabs */
@@ -366,6 +432,70 @@
       height: 10px;
       border-radius: 50%;
     }
+
+    /* CSV Upload */
+    .csv-upload-area {
+      border: 2px dashed rgba(96, 165, 250, 0.4);
+      border-radius: 10px;
+      padding: 15px;
+      text-align: center;
+      margin-top: 12px;
+      transition: all 0.2s;
+      cursor: pointer;
+      display: none;
+    }
+
+    .csv-upload-area.visible {
+      display: block;
+    }
+
+    .csv-upload-area:hover, .csv-upload-area.dragover {
+      border-color: #60a5fa;
+      background: rgba(59, 130, 246, 0.1);
+    }
+
+    .csv-upload-area input[type="file"] {
+      display: none;
+    }
+
+    .csv-upload-icon {
+      font-size: 2em;
+      margin-bottom: 8px;
+    }
+
+    .csv-upload-text {
+      font-size: 0.85em;
+      color: #9ca3af;
+    }
+
+    .csv-upload-text strong {
+      color: #60a5fa;
+    }
+
+    .csv-info {
+      font-size: 0.75em;
+      color: #6b7280;
+      margin-top: 8px;
+    }
+
+    .loaded-dataset-info {
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 8px;
+      padding: 10px;
+      margin-top: 10px;
+      font-size: 0.85em;
+      display: none;
+    }
+
+    .loaded-dataset-info.visible {
+      display: block;
+    }
+
+    .loaded-dataset-info .dataset-name {
+      color: #10b981;
+      font-weight: 600;
+    }
   </style>
 </head>
 <body>
@@ -385,10 +515,25 @@
               <h4>Karate Club</h4>
               <p>34 nodes, 2 classes</p>
             </div>
-            <div class="dataset-card" data-dataset="citeseer">
-              <h4>Citeseer</h4>
-              <p>Custom graph</p>
+            <div class="dataset-card" data-dataset="custom">
+              <h4>Custom CSV</h4>
+              <p>Upload your own</p>
             </div>
+          </div>
+          <div class="csv-upload-area" id="csvUploadArea">
+            <div class="csv-upload-icon">📁</div>
+            <div class="csv-upload-text">
+              <strong>Click to upload</strong> or drag & drop<br>
+              CSV files (edges, features, labels)
+            </div>
+            <div class="csv-info">
+              Format: edges.csv (src,dst), features.csv (one row per node), labels.csv (class per node)
+            </div>
+            <input type="file" id="csvFileInput" accept=".csv" multiple>
+          </div>
+          <div class="loaded-dataset-info" id="loadedDatasetInfo">
+            <span class="dataset-name" id="customDatasetName">custom-dataset</span>
+            <span id="customDatasetStats"></span>
           </div>
           <div class="form-group">
             <label>Train/Val Split</label>
@@ -543,6 +688,7 @@
           </div>
           <div class="graph-viz">
             <canvas id="graphCanvas"></canvas>
+            <div class="tooltip" id="tooltip"></div>
           </div>
         </div>
 
@@ -570,7 +716,9 @@
       SGD,
       RMSprop,
       crossEntropyLoss,
-    } from '../src/index.ts';
+      MessagePassing,
+      computeGCNNorm,
+    } from 'browser-gnn';
 
     // State
     let isTraining = false;
@@ -587,6 +735,10 @@
     let accHistory = [];
     let valAccHistory = [];
     let nodePositions = [];
+    let currentView = 'graph'; // 'graph', 'predictions', 'embeddings'
+    let currentEmbeddings = null; // Store embeddings for visualization
+    let currentPredictions = []; // Store predictions
+    let tsnePositions = []; // Store t-SNE computed positions
 
     // DOM elements
     const trainBtn = document.getElementById('trainBtn');
@@ -598,6 +750,7 @@
     const lossCanvas = document.getElementById('lossChart');
     const accCanvas = document.getElementById('accChart');
     const graphCanvas = document.getElementById('graphCanvas');
+    const tooltip = document.getElementById('tooltip');
 
     // Chart contexts
     const lossCtx = lossCanvas.getContext('2d');
@@ -663,9 +816,10 @@
       ]);
 
       graphData = new GraphData({
-        x: new Tensor(features, [numNodes, numNodes]),
+        x: features,
         edgeIndex,
         numNodes,
+        numFeatures: numNodes,
         numEdges,
       });
 
@@ -677,6 +831,265 @@
       log('info', `Loaded Karate Club: ${numNodes} nodes, ${edges.length} edges, 2 classes`);
 
       return { numNodes, numFeatures: numNodes, numClasses: 2 };
+    }
+
+    // Custom CSV dataset variables
+    let customDatasetEdges = [];
+
+    // CSV parsing and loading functions
+    async function handleCSVFiles(files) {
+      log('info', `Processing ${files.length} CSV file(s)...`);
+
+      const fileContents = {};
+      for (const file of files) {
+        const name = file.name.toLowerCase();
+        const content = await readFileAsText(file);
+        fileContents[name] = content;
+      }
+
+      try {
+        // Parse the CSV files
+        const result = parseCSVDataset(fileContents);
+
+        // Update global graph data
+        graphData = result.graphData;
+        labels = result.labels;
+        customDatasetEdges = result.edges;
+
+        // Generate positions for visualization
+        generateNodePositions(result.edges, result.numNodes);
+
+        // Update UI
+        const loadedInfo = document.getElementById('loadedDatasetInfo');
+        const datasetName = document.getElementById('customDatasetName');
+        const datasetStats = document.getElementById('customDatasetStats');
+
+        datasetName.textContent = files[0].name.replace('.csv', '');
+        datasetStats.textContent = ` - ${result.numNodes} nodes, ${result.edges.length} edges, ${result.numClasses} classes`;
+        loadedInfo.classList.add('visible');
+
+        // Reset predictions
+        currentEmbeddings = null;
+        currentPredictions = [];
+        tsnePositions = [];
+
+        // Redraw visualization
+        drawVisualization();
+
+        log('success', `Loaded custom dataset: ${result.numNodes} nodes, ${result.edges.length} edges, ${result.numClasses} classes`);
+      } catch (error) {
+        log('error', `Failed to parse CSV: ${error.message}`);
+      }
+    }
+
+    function readFileAsText(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = (e) => reject(new Error('Failed to read file'));
+        reader.readAsText(file);
+      });
+    }
+
+    function parseCSVDataset(fileContents) {
+      // Try to auto-detect file type based on name or content
+      let edgesData = null;
+      let featuresData = null;
+      let labelsData = null;
+
+      // Check for specific filenames
+      for (const [filename, content] of Object.entries(fileContents)) {
+        if (filename.includes('edge')) {
+          edgesData = parseCSV(content);
+        } else if (filename.includes('feature') || filename.includes('node')) {
+          featuresData = parseCSV(content);
+        } else if (filename.includes('label') || filename.includes('class')) {
+          labelsData = parseCSV(content);
+        }
+      }
+
+      // If only one file, try to detect format
+      if (Object.keys(fileContents).length === 1) {
+        const content = Object.values(fileContents)[0];
+        return parseUnifiedCSV(content);
+      }
+
+      // Build graph from separate files
+      if (!edgesData) {
+        throw new Error('No edges file found. Expected file with "edge" in filename.');
+      }
+
+      // Parse edges
+      const edges = [];
+      const hasHeader = isNaN(parseInt(edgesData[0][0]));
+      const startIdx = hasHeader ? 1 : 0;
+
+      for (let i = startIdx; i < edgesData.length; i++) {
+        const row = edgesData[i];
+        if (row.length >= 2) {
+          const src = parseInt(row[0]);
+          const dst = parseInt(row[1]);
+          if (!isNaN(src) && !isNaN(dst)) {
+            edges.push([src, dst]);
+          }
+        }
+      }
+
+      // Determine number of nodes
+      let numNodes = 0;
+      for (const [src, dst] of edges) {
+        numNodes = Math.max(numNodes, src + 1, dst + 1);
+      }
+
+      // Parse features or create default one-hot
+      let features;
+      let numFeatures;
+      if (featuresData && featuresData.length > 0) {
+        const hasHeaderF = isNaN(parseFloat(featuresData[0][0]));
+        const startIdxF = hasHeaderF ? 1 : 0;
+        numFeatures = featuresData[startIdxF].length;
+        features = new Float32Array(numNodes * numFeatures);
+
+        for (let i = startIdxF; i < featuresData.length && (i - startIdxF) < numNodes; i++) {
+          const row = featuresData[i];
+          for (let f = 0; f < numFeatures; f++) {
+            features[(i - startIdxF) * numFeatures + f] = parseFloat(row[f]) || 0;
+          }
+        }
+      } else {
+        // Default to one-hot encoding
+        numFeatures = numNodes;
+        features = new Float32Array(numNodes * numNodes);
+        for (let i = 0; i < numNodes; i++) {
+          features[i * numNodes + i] = 1;
+        }
+      }
+
+      // Parse labels
+      let nodeLabels;
+      let numClasses = 2;
+      if (labelsData && labelsData.length > 0) {
+        const hasHeaderL = isNaN(parseInt(labelsData[0][0]));
+        const startIdxL = hasHeaderL ? 1 : 0;
+        nodeLabels = new Uint32Array(numNodes);
+        const labelSet = new Set();
+
+        for (let i = startIdxL; i < labelsData.length && (i - startIdxL) < numNodes; i++) {
+          const label = parseInt(labelsData[i][0]) || 0;
+          nodeLabels[i - startIdxL] = label;
+          labelSet.add(label);
+        }
+        numClasses = labelSet.size;
+      } else {
+        // Default to random 2-class labels
+        nodeLabels = new Uint32Array(numNodes);
+        for (let i = 0; i < numNodes; i++) {
+          nodeLabels[i] = Math.random() < 0.5 ? 0 : 1;
+        }
+      }
+
+      // Create edge index (undirected)
+      const numEdges = edges.length * 2;
+      const edgeIndex = new Uint32Array(numEdges * 2);
+      let idx = 0;
+      for (const [src, dst] of edges) {
+        edgeIndex[idx] = src;
+        edgeIndex[numEdges + idx] = dst;
+        idx++;
+        edgeIndex[idx] = dst;
+        edgeIndex[numEdges + idx] = src;
+        idx++;
+      }
+
+      const graphDataResult = new GraphData({
+        x: features,
+        edgeIndex,
+        numNodes,
+        numFeatures,
+        numEdges,
+      });
+
+      return {
+        graphData: graphDataResult,
+        labels: nodeLabels,
+        edges,
+        numNodes,
+        numFeatures,
+        numClasses
+      };
+    }
+
+    function parseUnifiedCSV(content) {
+      // Parse a unified CSV format where each row is:
+      // node_id, feature1, feature2, ..., label, neighbor1, neighbor2, ...
+      // OR just edges: src, dst
+      const data = parseCSV(content);
+      if (data.length === 0) {
+        throw new Error('Empty CSV file');
+      }
+
+      // Check if it's just edges (2 columns of integers)
+      if (data[0].length === 2 && !isNaN(parseInt(data[0][0])) && !isNaN(parseInt(data[0][1]))) {
+        // Edges only format
+        const edges = [];
+        for (const row of data) {
+          const src = parseInt(row[0]);
+          const dst = parseInt(row[1]);
+          if (!isNaN(src) && !isNaN(dst)) {
+            edges.push([src, dst]);
+          }
+        }
+
+        let numNodes = 0;
+        for (const [src, dst] of edges) {
+          numNodes = Math.max(numNodes, src + 1, dst + 1);
+        }
+
+        // Create default features and labels
+        const features = new Float32Array(numNodes * numNodes);
+        for (let i = 0; i < numNodes; i++) {
+          features[i * numNodes + i] = 1;
+        }
+
+        const nodeLabels = new Uint32Array(numNodes);
+        for (let i = 0; i < numNodes; i++) {
+          nodeLabels[i] = Math.random() < 0.5 ? 0 : 1;
+        }
+
+        const numEdges = edges.length * 2;
+        const edgeIndex = new Uint32Array(numEdges * 2);
+        let idx = 0;
+        for (const [src, dst] of edges) {
+          edgeIndex[idx] = src;
+          edgeIndex[numEdges + idx] = dst;
+          idx++;
+          edgeIndex[idx] = dst;
+          edgeIndex[numEdges + idx] = src;
+          idx++;
+        }
+
+        return {
+          graphData: new GraphData({
+            x: features,
+            edgeIndex,
+            numNodes,
+            numFeatures: numNodes,
+            numEdges,
+          }),
+          labels: nodeLabels,
+          edges,
+          numNodes,
+          numFeatures: numNodes,
+          numClasses: 2
+        };
+      }
+
+      throw new Error('Unrecognized CSV format. Please provide separate edges.csv, features.csv, and labels.csv files.');
+    }
+
+    function parseCSV(content) {
+      const lines = content.trim().split('\n');
+      return lines.map(line => line.split(',').map(cell => cell.trim()));
     }
 
     function generateNodePositions(edges, numNodes) {
@@ -793,13 +1206,26 @@
 
           // Create trainable variables for weights
           this.variables = [];
+          this.layerVariables = []; // Track per-layer for forwardWithGrad
           for (const layer of this.layers) {
+            const layerVars = {};
             const params = layer._parameters;
             for (const [name, param] of params) {
-              const v = new Variable(param.tensor, { requiresGrad: true, name });
+              const v = new Variable(param.tensor, { requiresGrad: true, name: `${this.layers.indexOf(layer)}_${name}` });
               this.variables.push(v);
+              layerVars[name] = v;
             }
+            this.layerVariables.push(layerVars);
           }
+
+          // Store layer configs for forwardWithGrad
+          this.layerConfigs = this.layers.map(layer => ({
+            inChannels: layer.inChannels,
+            outChannels: layer.outChannels,
+            addSelfLoops: layer.addSelfLoops,
+            normalize: layer.normalize,
+            useBias: layer.useBias
+          }));
         }
 
         forward(graph) {
@@ -816,6 +1242,174 @@
             }
           }
           return out;
+        }
+
+        // Forward pass with gradient tracking using Variables
+        forwardWithGrad(graph) {
+          const { x, edgeIndex, numEdges, numNodes } = graph;
+
+          // Wrap input features as Variable
+          let hVar = new Variable(x, { requiresGrad: false, name: 'input' });
+
+          for (let layerIdx = 0; layerIdx < this.layers.length; layerIdx++) {
+            const layerVars = this.layerVariables[layerIdx];
+            const config = this.layerConfigs[layerIdx];
+            const weightVar = layerVars.weight;
+            const biasVar = layerVars.bias;
+
+            // Process graph (add self-loops if needed)
+            let processedGraph = graph;
+            if (config.addSelfLoops && !graph.hasSelfLoops()) {
+              processedGraph = graph.addSelfLoops();
+            }
+
+            // Step 1: Linear transform: H_transformed = X @ W (using Variables)
+            const transformedVar = hVar.matmul(weightVar);
+
+            // Step 2: Message passing (GCN normalization)
+            // This is a fixed linear operation - no learnable params
+            // We compute it with Tensors and wrap as Variable
+            const transformed = transformedVar.data;
+            let aggregated;
+
+            if (config.normalize) {
+              // Compute GCN normalization coefficients
+              const norm = computeGCNNorm(
+                processedGraph.edgeIndex,
+                processedGraph.numEdges,
+                numNodes,
+                false
+              );
+
+              // Gather source features
+              const srcFeatures = MessagePassing.gather(
+                transformed,
+                processedGraph.edgeIndex.slice(0, processedGraph.numEdges)
+              );
+
+              // Apply normalization
+              const normalizedMessages = new Float32Array(srcFeatures.size);
+              for (let i = 0; i < processedGraph.numEdges; i++) {
+                for (let f = 0; f < config.outChannels; f++) {
+                  normalizedMessages[i * config.outChannels + f] =
+                    srcFeatures.data[i * config.outChannels + f] * norm[i];
+                }
+              }
+              const normalizedTensor = new Tensor(normalizedMessages, srcFeatures.shape);
+
+              // Scatter-add to target nodes
+              aggregated = MessagePassing.scatterAdd(
+                normalizedTensor,
+                processedGraph.edgeIndex.slice(processedGraph.numEdges),
+                numNodes
+              );
+            } else {
+              // Simple sum without normalization
+              const srcFeatures = MessagePassing.gather(
+                transformed,
+                processedGraph.edgeIndex.slice(0, processedGraph.numEdges)
+              );
+              aggregated = MessagePassing.scatterAdd(
+                srcFeatures,
+                processedGraph.edgeIndex.slice(processedGraph.numEdges),
+                numNodes
+              );
+            }
+
+            // Wrap aggregated result as Variable (connecting to transformedVar's graph)
+            // The gradient will flow: aggregated -> transformed -> weight
+            // We need to create this connection manually using a custom backward
+            const aggregatedVar = new Variable(aggregated, {
+              requiresGrad: true,
+              gradNode: {
+                inputs: [transformedVar],
+                backward: (grad) => {
+                  // Backward through scatter-add is gather
+                  // Backward through gather is scatter-add
+                  // For GCN: d/d(transformed) = aggregate^T(grad)
+                  const gradData = new Float32Array(transformed.size);
+
+                  if (config.normalize) {
+                    const norm = computeGCNNorm(
+                      processedGraph.edgeIndex,
+                      processedGraph.numEdges,
+                      numNodes,
+                      false
+                    );
+
+                    // Scatter grad back to source nodes (reverse of gather)
+                    for (let e = 0; e < processedGraph.numEdges; e++) {
+                      const src = processedGraph.edgeIndex[e];
+                      const dst = processedGraph.edgeIndex[processedGraph.numEdges + e];
+                      for (let f = 0; f < config.outChannels; f++) {
+                        gradData[src * config.outChannels + f] +=
+                          grad.data[dst * config.outChannels + f] * norm[e];
+                      }
+                    }
+                  } else {
+                    for (let e = 0; e < processedGraph.numEdges; e++) {
+                      const src = processedGraph.edgeIndex[e];
+                      const dst = processedGraph.edgeIndex[processedGraph.numEdges + e];
+                      for (let f = 0; f < config.outChannels; f++) {
+                        gradData[src * config.outChannels + f] +=
+                          grad.data[dst * config.outChannels + f];
+                      }
+                    }
+                  }
+
+                  return [new Tensor(gradData, transformed.shape)];
+                },
+                name: 'gcn_aggregate'
+              },
+              name: `layer${layerIdx}_agg`
+            });
+
+            // Step 3: Add bias (using Variables)
+            let outputVar;
+            if (config.useBias && biasVar) {
+              // Broadcast bias to all nodes
+              const biasData = new Float32Array(numNodes * config.outChannels);
+              for (let n = 0; n < numNodes; n++) {
+                for (let f = 0; f < config.outChannels; f++) {
+                  biasData[n * config.outChannels + f] = biasVar.data.data[f];
+                }
+              }
+              const biasBroadcast = new Variable(new Tensor(biasData, [numNodes, config.outChannels]), {
+                requiresGrad: true,
+                gradNode: {
+                  inputs: [biasVar],
+                  backward: (grad) => {
+                    // Sum gradient over all nodes to get bias gradient
+                    const biasGrad = new Float32Array(config.outChannels);
+                    for (let n = 0; n < numNodes; n++) {
+                      for (let f = 0; f < config.outChannels; f++) {
+                        biasGrad[f] += grad.data[n * config.outChannels + f];
+                      }
+                    }
+                    return [new Tensor(biasGrad, [config.outChannels])];
+                  },
+                  name: 'bias_broadcast'
+                },
+                name: `layer${layerIdx}_bias_broadcast`
+              });
+              outputVar = aggregatedVar.add(biasBroadcast);
+            } else {
+              outputVar = aggregatedVar;
+            }
+
+            // Step 4: Apply ReLU (except last layer)
+            if (layerIdx < this.layers.length - 1) {
+              hVar = outputVar.relu();
+            } else {
+              hVar = outputVar;
+            }
+          }
+
+          // Return both the GraphData (for visualization) and the Variable (for backward)
+          return {
+            graph: graph.withFeatures(hVar.data),
+            outputVar: hVar
+          };
         }
 
         getVariables() {
@@ -895,23 +1489,51 @@
         // Zero gradients
         optimizer.zeroGrad();
 
-        // Forward pass
-        const output = model.forward(graphData);
+        // Forward pass with gradient tracking
+        const { graph: output, outputVar } = model.forwardWithGrad(graphData);
 
         // Compute training loss and accuracy
         const trainIndices = trainMask.map((m, i) => m ? i : -1).filter(i => i >= 0);
         const valIndices = valMask.map((m, i) => m ? i : -1).filter(i => i >= 0);
-
-        const trainLogits = gatherRows(output.x, trainIndices);
         const trainLabels = trainIndices.map(i => labels[i]);
-        const trainLogitsVar = new Variable(trainLogits, { requiresGrad: true });
+
+        // Gather training logits from the Variable (maintaining graph connection)
+        const numClasses = output.x.shape[1];
+        const trainLogitsData = new Float32Array(trainIndices.length * numClasses);
+        for (let i = 0; i < trainIndices.length; i++) {
+          for (let c = 0; c < numClasses; c++) {
+            trainLogitsData[i * numClasses + c] = outputVar.data.data[trainIndices[i] * numClasses + c];
+          }
+        }
+        const trainLogitsTensor = new Tensor(trainLogitsData, [trainIndices.length, numClasses]);
+
+        // Create Variable for train logits with proper backward connection
+        const trainLogitsVar = new Variable(trainLogitsTensor, {
+          requiresGrad: true,
+          gradNode: {
+            inputs: [outputVar],
+            backward: (grad) => {
+              // Scatter gradient back to full output
+              const fullGrad = new Float32Array(outputVar.data.size);
+              for (let i = 0; i < trainIndices.length; i++) {
+                for (let c = 0; c < numClasses; c++) {
+                  fullGrad[trainIndices[i] * numClasses + c] = grad.data[i * numClasses + c];
+                }
+              }
+              return [new Tensor(fullGrad, outputVar.data.shape)];
+            },
+            name: 'gather_train'
+          },
+          name: 'train_logits'
+        });
+
         const loss = crossEntropyLoss(trainLogitsVar, trainLabels);
         const lossVal = loss.data.data[0];
 
-        // Backward pass
+        // Backward pass - now gradients flow through model Variables!
         loss.backward();
 
-        // Update weights (simplified - in real impl, gradients would flow through model)
+        // Update weights
         optimizer.stepOptimizer();
 
         // Compute metrics
@@ -930,11 +1552,33 @@
         accHistory.push(trainAcc);
         valAccHistory.push(valAcc);
 
+        // Store embeddings and predictions for visualization
+        currentEmbeddings = output.x;
+        currentPredictions = [];
+        const numCols = output.x.shape[1];
+        for (let i = 0; i < numNodes; i++) {
+          let maxVal = -Infinity;
+          let maxIdx = 0;
+          for (let c = 0; c < numCols; c++) {
+            const val = output.x.data[i * numCols + c];
+            if (val > maxVal) {
+              maxVal = val;
+              maxIdx = c;
+            }
+          }
+          currentPredictions.push(maxIdx);
+        }
+
+        // Compute t-SNE positions periodically
+        if (epoch === 0 || epoch % 10 === 0) {
+          computeTSNE(output.x);
+        }
+
         // Update UI
         updateMetrics(epoch, lossVal, trainAcc, valAcc);
         updateProgress(epoch, config.maxEpochs);
         drawCharts();
-        drawGraph(output.x);
+        drawVisualization();
 
         if (epoch % 10 === 0) {
           log('info', `Epoch ${epoch}: loss=${lossVal.toFixed(4)}, acc=${(trainAcc*100).toFixed(1)}%, val_acc=${(valAcc*100).toFixed(1)}%`);
@@ -948,7 +1592,11 @@
           patienceCounter++;
           if (patienceCounter >= config.patience) {
             log('success', `Early stopping at epoch ${epoch} (patience ${config.patience})`);
-            break;
+            showTrainingComplete(epoch + 1, config.maxEpochs, true, false);
+            isTraining = false;
+            trainBtn.disabled = false;
+            stopBtn.disabled = true;
+            return;
           }
         }
 
@@ -956,11 +1604,42 @@
         await new Promise(resolve => setTimeout(resolve, 10));
       }
 
+      // Check if stopped by user
+      if (stopRequested) {
+        showTrainingComplete(lossHistory.length, config.maxEpochs, false, true);
+      } else {
+        // Normal completion (all epochs)
+        showTrainingComplete(config.maxEpochs, config.maxEpochs, false, false);
+      }
+
       log('success', `Training complete! Final val acc: ${(valAccHistory[valAccHistory.length-1]*100).toFixed(1)}%`);
 
       isTraining = false;
       trainBtn.disabled = false;
       stopBtn.disabled = true;
+    }
+
+    function showTrainingComplete(stoppedAt, maxEpochs, earlyStopped, userStopped) {
+      const finalAcc = valAccHistory.length > 0 ? (valAccHistory[valAccHistory.length-1]*100).toFixed(1) : '0.0';
+
+      // Update progress bar to 100% and add complete class
+      progressFill.style.width = '100%';
+      progressFill.classList.remove('complete', 'stopped');
+      progressText.classList.remove('complete', 'stopped');
+
+      if (userStopped) {
+        progressFill.classList.add('stopped');
+        progressText.classList.add('stopped');
+        progressText.textContent = `Stopped at epoch ${stoppedAt} | Val Acc: ${finalAcc}%`;
+      } else if (earlyStopped) {
+        progressFill.classList.add('complete');
+        progressText.classList.add('complete');
+        progressText.textContent = `Complete (early stopped at ${stoppedAt}) | Val Acc: ${finalAcc}%`;
+      } else {
+        progressFill.classList.add('complete');
+        progressText.classList.add('complete');
+        progressText.textContent = `Complete (${maxEpochs} epochs) | Val Acc: ${finalAcc}%`;
+      }
     }
 
     function gatherRows(tensor, indices) {
@@ -1103,7 +1782,84 @@
       ctx.fillText('Epoch', width / 2, height - 5);
     }
 
-    function drawGraph(embeddings) {
+    // Simple t-SNE implementation for 2D visualization
+    function computeTSNE(embeddings) {
+      if (!embeddings) return;
+
+      const numNodes = embeddings.shape[0];
+      const numDims = embeddings.shape[1];
+
+      // Initialize random positions
+      if (tsnePositions.length !== numNodes) {
+        tsnePositions = [];
+        for (let i = 0; i < numNodes; i++) {
+          tsnePositions.push({
+            x: Math.random() * 0.8 + 0.1,
+            y: Math.random() * 0.8 + 0.1
+          });
+        }
+      }
+
+      // Compute pairwise distances in embedding space
+      const distances = [];
+      for (let i = 0; i < numNodes; i++) {
+        distances[i] = [];
+        for (let j = 0; j < numNodes; j++) {
+          let sum = 0;
+          for (let d = 0; d < numDims; d++) {
+            const diff = embeddings.data[i * numDims + d] - embeddings.data[j * numDims + d];
+            sum += diff * diff;
+          }
+          distances[i][j] = Math.sqrt(sum);
+        }
+      }
+
+      // Simple gradient descent for t-SNE-like layout
+      const lr = 0.1;
+      for (let iter = 0; iter < 50; iter++) {
+        for (let i = 0; i < numNodes; i++) {
+          let gradX = 0, gradY = 0;
+          for (let j = 0; j < numNodes; j++) {
+            if (i === j) continue;
+
+            const dx = tsnePositions[i].x - tsnePositions[j].x;
+            const dy = tsnePositions[i].y - tsnePositions[j].y;
+            const d2D = Math.sqrt(dx * dx + dy * dy) + 0.001;
+            const dHigh = distances[i][j] + 0.001;
+
+            // Attraction/repulsion force
+            const force = (d2D - dHigh * 0.05) / d2D;
+            gradX += dx * force * 0.01;
+            gradY += dy * force * 0.01;
+          }
+
+          tsnePositions[i].x -= lr * gradX;
+          tsnePositions[i].y -= lr * gradY;
+
+          // Clamp to bounds
+          tsnePositions[i].x = Math.max(0.1, Math.min(0.9, tsnePositions[i].x));
+          tsnePositions[i].y = Math.max(0.1, Math.min(0.9, tsnePositions[i].y));
+        }
+      }
+    }
+
+    // Main visualization dispatcher
+    function drawVisualization() {
+      switch (currentView) {
+        case 'graph':
+          drawGraphStructure();
+          break;
+        case 'predictions':
+          drawPredictions();
+          break;
+        case 'embeddings':
+          drawEmbeddings();
+          break;
+      }
+    }
+
+    // Graph structure view - shows ground truth labels
+    function drawGraphStructure() {
       const rect = graphCanvas.getBoundingClientRect();
       graphCanvas.width = rect.width * window.devicePixelRatio;
       graphCanvas.height = rect.height * window.devicePixelRatio;
@@ -1113,37 +1869,14 @@
       const height = rect.height;
       const padding = 40;
 
-      // Clear
       graphCtx.fillStyle = 'rgba(15, 23, 42, 0.8)';
       graphCtx.fillRect(0, 0, width, height);
 
       if (!graphData || nodePositions.length === 0) return;
 
       const numNodes = graphData.numNodes;
-      const numClasses = 2;
+      const colors = ['#3b82f6', '#ef4444']; // Blue = Class 0, Red = Class 1
 
-      // Get predictions
-      const predictions = [];
-      if (embeddings) {
-        const numCols = embeddings.shape[1];
-        for (let i = 0; i < numNodes; i++) {
-          let maxVal = -Infinity;
-          let maxIdx = 0;
-          for (let c = 0; c < numCols; c++) {
-            const val = embeddings.data[i * numCols + c];
-            if (val > maxVal) {
-              maxVal = val;
-              maxIdx = c;
-            }
-          }
-          predictions.push(maxIdx);
-        }
-      }
-
-      // Colors for classes
-      const colors = ['#3b82f6', '#ef4444'];
-
-      // Scale positions
       const scaleX = (x) => padding + x * (width - 2 * padding);
       const scaleY = (y) => padding + y * (height - 2 * padding);
 
@@ -1156,34 +1889,30 @@
       for (let i = 0; i < numEdges / 2; i++) {
         const src = edgeIndex[i];
         const dst = edgeIndex[numEdges + i];
-
         graphCtx.beginPath();
         graphCtx.moveTo(scaleX(nodePositions[src].x), scaleY(nodePositions[src].y));
         graphCtx.lineTo(scaleX(nodePositions[dst].x), scaleY(nodePositions[dst].y));
         graphCtx.stroke();
       }
 
-      // Draw nodes
+      // Draw nodes (ground truth colors)
       for (let i = 0; i < numNodes; i++) {
         const x = scaleX(nodePositions[i].x);
         const y = scaleY(nodePositions[i].y);
-        const color = predictions.length > 0 ? colors[predictions[i]] : colors[labels[i]];
+        const color = colors[labels[i]];
         const isTrainNode = trainMask[i];
 
-        // Draw node
         graphCtx.beginPath();
         graphCtx.arc(x, y, isTrainNode ? 10 : 8, 0, Math.PI * 2);
         graphCtx.fillStyle = color;
         graphCtx.fill();
 
-        // Border for validation nodes
         if (!isTrainNode) {
           graphCtx.strokeStyle = 'white';
           graphCtx.lineWidth = 2;
           graphCtx.stroke();
         }
 
-        // Node label
         graphCtx.fillStyle = 'white';
         graphCtx.font = 'bold 9px sans-serif';
         graphCtx.textAlign = 'center';
@@ -1195,7 +1924,246 @@
       graphCtx.fillStyle = '#9ca3af';
       graphCtx.font = '11px sans-serif';
       graphCtx.textAlign = 'left';
-      graphCtx.fillText('Filled = Train, Outlined = Val', 10, height - 10);
+      graphCtx.fillText('Ground Truth Labels | Blue=Class 0, Red=Class 1 | Filled=Train, Outlined=Val', 10, height - 10);
+    }
+
+    // Predictions view - shows predicted labels with correct/incorrect indicators
+    function drawPredictions() {
+      const rect = graphCanvas.getBoundingClientRect();
+      graphCanvas.width = rect.width * window.devicePixelRatio;
+      graphCanvas.height = rect.height * window.devicePixelRatio;
+      graphCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+      const width = rect.width;
+      const height = rect.height;
+      const padding = 40;
+
+      graphCtx.fillStyle = 'rgba(15, 23, 42, 0.8)';
+      graphCtx.fillRect(0, 0, width, height);
+
+      if (!graphData || nodePositions.length === 0) return;
+
+      const numNodes = graphData.numNodes;
+      const scaleX = (x) => padding + x * (width - 2 * padding);
+      const scaleY = (y) => padding + y * (height - 2 * padding);
+
+      // Draw edges
+      graphCtx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      graphCtx.lineWidth = 1;
+
+      const edgeIndex = graphData.edgeIndex;
+      const numEdges = graphData.numEdges;
+      for (let i = 0; i < numEdges / 2; i++) {
+        const src = edgeIndex[i];
+        const dst = edgeIndex[numEdges + i];
+        graphCtx.beginPath();
+        graphCtx.moveTo(scaleX(nodePositions[src].x), scaleY(nodePositions[src].y));
+        graphCtx.lineTo(scaleX(nodePositions[dst].x), scaleY(nodePositions[dst].y));
+        graphCtx.stroke();
+      }
+
+      // Draw nodes with prediction status
+      for (let i = 0; i < numNodes; i++) {
+        const x = scaleX(nodePositions[i].x);
+        const y = scaleY(nodePositions[i].y);
+        const prediction = currentPredictions[i] ?? labels[i];
+        const isCorrect = prediction === labels[i];
+
+        // Green = correct, Red = incorrect
+        const color = isCorrect ? '#10b981' : '#ef4444';
+
+        graphCtx.beginPath();
+        graphCtx.arc(x, y, 10, 0, Math.PI * 2);
+        graphCtx.fillStyle = color;
+        graphCtx.fill();
+
+        // Add checkmark or X symbol
+        graphCtx.fillStyle = 'white';
+        graphCtx.font = 'bold 10px sans-serif';
+        graphCtx.textAlign = 'center';
+        graphCtx.textBaseline = 'middle';
+        graphCtx.fillText(isCorrect ? '✓' : '✗', x, y);
+      }
+
+      // Count correct predictions
+      const correct = currentPredictions.reduce((sum, pred, i) => sum + (pred === labels[i] ? 1 : 0), 0);
+      const accuracy = currentPredictions.length > 0 ? (correct / numNodes * 100).toFixed(1) : 0;
+
+      graphCtx.fillStyle = '#9ca3af';
+      graphCtx.font = '11px sans-serif';
+      graphCtx.textAlign = 'left';
+      graphCtx.fillText(`Predictions | Green=Correct, Red=Incorrect | Accuracy: ${accuracy}% (${correct}/${numNodes})`, 10, height - 10);
+    }
+
+    // Embeddings view - t-SNE visualization of learned embeddings
+    function drawEmbeddings() {
+      const rect = graphCanvas.getBoundingClientRect();
+      graphCanvas.width = rect.width * window.devicePixelRatio;
+      graphCanvas.height = rect.height * window.devicePixelRatio;
+      graphCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+      const width = rect.width;
+      const height = rect.height;
+      const padding = 40;
+
+      graphCtx.fillStyle = 'rgba(15, 23, 42, 0.8)';
+      graphCtx.fillRect(0, 0, width, height);
+
+      if (!graphData || tsnePositions.length === 0) {
+        // Show message if no embeddings yet
+        graphCtx.fillStyle = '#9ca3af';
+        graphCtx.font = '14px sans-serif';
+        graphCtx.textAlign = 'center';
+        graphCtx.fillText('Start training to see embedding visualization', width / 2, height / 2);
+        return;
+      }
+
+      const numNodes = graphData.numNodes;
+      const colors = ['#3b82f6', '#ef4444'];
+
+      const scaleX = (x) => padding + x * (width - 2 * padding);
+      const scaleY = (y) => padding + y * (height - 2 * padding);
+
+      // Draw connections between same-class nodes (lighter)
+      graphCtx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+      graphCtx.lineWidth = 1;
+      for (let i = 0; i < numNodes; i++) {
+        for (let j = i + 1; j < numNodes; j++) {
+          if (labels[i] === labels[j]) {
+            graphCtx.beginPath();
+            graphCtx.moveTo(scaleX(tsnePositions[i].x), scaleY(tsnePositions[i].y));
+            graphCtx.lineTo(scaleX(tsnePositions[j].x), scaleY(tsnePositions[j].y));
+            graphCtx.stroke();
+          }
+        }
+      }
+
+      // Draw nodes using t-SNE positions
+      for (let i = 0; i < numNodes; i++) {
+        const x = scaleX(tsnePositions[i].x);
+        const y = scaleY(tsnePositions[i].y);
+        const color = colors[labels[i]];
+
+        graphCtx.beginPath();
+        graphCtx.arc(x, y, 8, 0, Math.PI * 2);
+        graphCtx.fillStyle = color;
+        graphCtx.fill();
+
+        graphCtx.fillStyle = 'white';
+        graphCtx.font = 'bold 8px sans-serif';
+        graphCtx.textAlign = 'center';
+        graphCtx.textBaseline = 'middle';
+        graphCtx.fillText(i.toString(), x, y);
+      }
+
+      graphCtx.fillStyle = '#9ca3af';
+      graphCtx.font = '11px sans-serif';
+      graphCtx.textAlign = 'left';
+      graphCtx.fillText('t-SNE Embedding | Nodes colored by ground truth | Similar embeddings cluster together', 10, height - 10);
+    }
+
+    // Get node at position (for hover)
+    function getNodeAtPosition(mouseX, mouseY) {
+      const rect = graphCanvas.getBoundingClientRect();
+      const x = mouseX - rect.left;
+      const y = mouseY - rect.top;
+
+      const width = rect.width;
+      const height = rect.height;
+      const padding = 40;
+
+      const positions = currentView === 'embeddings' ? tsnePositions : nodePositions;
+      if (positions.length === 0) return null;
+
+      const scaleX = (px) => padding + px * (width - 2 * padding);
+      const scaleY = (py) => padding + py * (height - 2 * padding);
+
+      for (let i = 0; i < positions.length; i++) {
+        const nx = scaleX(positions[i].x);
+        const ny = scaleY(positions[i].y);
+        const dist = Math.sqrt((x - nx) ** 2 + (y - ny) ** 2);
+        if (dist < 15) {
+          return i;
+        }
+      }
+      return null;
+    }
+
+    // Show tooltip for node
+    function showNodeTooltip(nodeIdx, mouseX, mouseY) {
+      const prediction = currentPredictions[nodeIdx] ?? null;
+      const trueLabel = labels[nodeIdx];
+      const isCorrect = prediction === trueLabel;
+      const isTrainNode = trainMask[nodeIdx];
+
+      let html = `<div class="tooltip-title">Node ${nodeIdx}</div>`;
+      html += `<div class="tooltip-row"><span class="tooltip-label">True Label:</span><span class="tooltip-value">${trueLabel === 0 ? 'Class 0 (Mr. Hi)' : 'Class 1 (Officer)'}</span></div>`;
+      html += `<div class="tooltip-row"><span class="tooltip-label">Split:</span><span class="tooltip-value">${isTrainNode ? 'Training' : 'Validation'}</span></div>`;
+
+      if (prediction !== null) {
+        html += `<div class="tooltip-row"><span class="tooltip-label">Prediction:</span><span class="tooltip-value ${isCorrect ? 'tooltip-correct' : 'tooltip-incorrect'}">${prediction === 0 ? 'Class 0' : 'Class 1'} ${isCorrect ? '✓' : '✗'}</span></div>`;
+      }
+
+      // Get node degree
+      const edgeIndex = graphData.edgeIndex;
+      const numEdges = graphData.numEdges;
+      let degree = 0;
+      for (let i = 0; i < numEdges; i++) {
+        if (edgeIndex[i] === nodeIdx) degree++;
+      }
+      html += `<div class="tooltip-row"><span class="tooltip-label">Degree:</span><span class="tooltip-value">${degree}</span></div>`;
+
+      // Show embedding values if available
+      if (currentEmbeddings && currentView !== 'graph') {
+        const numCols = currentEmbeddings.shape[1];
+        const logits = [];
+        for (let c = 0; c < numCols; c++) {
+          logits.push(currentEmbeddings.data[nodeIdx * numCols + c].toFixed(3));
+        }
+        html += `<div class="tooltip-row"><span class="tooltip-label">Logits:</span><span class="tooltip-value">[${logits.join(', ')}]</span></div>`;
+      }
+
+      tooltip.innerHTML = html;
+      tooltip.style.display = 'block';
+
+      // Position tooltip
+      const rect = graphCanvas.parentElement.getBoundingClientRect();
+      let left = mouseX - rect.left + 15;
+      let top = mouseY - rect.top + 15;
+
+      // Keep within bounds
+      if (left + 200 > rect.width) left = mouseX - rect.left - 200;
+      if (top + 150 > rect.height) top = mouseY - rect.top - 150;
+
+      tooltip.style.left = `${left}px`;
+      tooltip.style.top = `${top}px`;
+    }
+
+    function hideTooltip() {
+      tooltip.style.display = 'none';
+    }
+
+    // Legacy function for backwards compatibility
+    function drawGraph(embeddings) {
+      if (embeddings) {
+        currentEmbeddings = embeddings;
+        const numNodes = embeddings.shape[0];
+        const numCols = embeddings.shape[1];
+        currentPredictions = [];
+        for (let i = 0; i < numNodes; i++) {
+          let maxVal = -Infinity;
+          let maxIdx = 0;
+          for (let c = 0; c < numCols; c++) {
+            const val = embeddings.data[i * numCols + c];
+            if (val > maxVal) {
+              maxVal = val;
+              maxIdx = c;
+            }
+          }
+          currentPredictions.push(maxIdx);
+        }
+      }
+      drawVisualization();
     }
 
     function log(type, message) {
@@ -1217,25 +2185,79 @@
       valLossHistory = [];
       accHistory = [];
       valAccHistory = [];
+      currentEmbeddings = null;
+      currentPredictions = [];
+      tsnePositions = [];
       updateMetrics(0, 0, 0, 0);
       progressFill.style.width = '0%';
+      progressFill.classList.remove('complete', 'stopped');
+      progressText.classList.remove('complete', 'stopped');
       progressText.textContent = 'Ready to train';
       drawCharts();
-      drawGraph(null);
+      drawVisualization();
       log('info', 'Model reset');
     });
 
     // Dataset selection
+    const csvUploadArea = document.getElementById('csvUploadArea');
+    const csvFileInput = document.getElementById('csvFileInput');
+    const loadedDatasetInfo = document.getElementById('loadedDatasetInfo');
+
     document.querySelectorAll('.dataset-card').forEach(card => {
       card.addEventListener('click', () => {
         document.querySelectorAll('.dataset-card').forEach(c => c.classList.remove('selected'));
         card.classList.add('selected');
         currentDataset = card.dataset.dataset;
+        // Reset predictions on dataset change
+        currentEmbeddings = null;
+        currentPredictions = [];
+        tsnePositions = [];
+
+        // Show/hide CSV upload area
+        if (currentDataset === 'custom') {
+          csvUploadArea.classList.add('visible');
+        } else {
+          csvUploadArea.classList.remove('visible');
+          loadedDatasetInfo.classList.remove('visible');
+        }
+
         if (currentDataset === 'karate') {
           loadKarateClub();
-          drawGraph(null);
+          drawVisualization();
         }
       });
+    });
+
+    // CSV upload area click handler
+    csvUploadArea.addEventListener('click', () => {
+      csvFileInput.click();
+    });
+
+    // Drag and drop handlers
+    csvUploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      csvUploadArea.classList.add('dragover');
+    });
+
+    csvUploadArea.addEventListener('dragleave', () => {
+      csvUploadArea.classList.remove('dragover');
+    });
+
+    csvUploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      csvUploadArea.classList.remove('dragover');
+      const files = Array.from(e.dataTransfer.files).filter(f => f.name.endsWith('.csv'));
+      if (files.length > 0) {
+        handleCSVFiles(files);
+      }
+    });
+
+    // File input change handler
+    csvFileInput.addEventListener('change', (e) => {
+      const files = Array.from(e.target.files);
+      if (files.length > 0) {
+        handleCSVFiles(files);
+      }
     });
 
     // Train split slider
@@ -1250,13 +2272,30 @@
       tab.addEventListener('click', () => {
         document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
-        // View switching would go here
+        currentView = tab.dataset.view;
+        drawVisualization();
       });
+    });
+
+    // Hover events for tooltips
+    graphCanvas.addEventListener('mousemove', (e) => {
+      const nodeIdx = getNodeAtPosition(e.clientX, e.clientY);
+      if (nodeIdx !== null) {
+        showNodeTooltip(nodeIdx, e.clientX, e.clientY);
+        graphCanvas.style.cursor = 'pointer';
+      } else {
+        hideTooltip();
+        graphCanvas.style.cursor = 'crosshair';
+      }
+    });
+
+    graphCanvas.addEventListener('mouseleave', () => {
+      hideTooltip();
     });
 
     // Initial load
     loadKarateClub();
-    drawGraph(null);
+    drawVisualization();
     drawCharts();
   </script>
 </body>
