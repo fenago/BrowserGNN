@@ -1,6 +1,6 @@
 {
   "name": "browser-gnn",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "BrowserGNN by Dr. Lee - The World's First Comprehensive Graph Neural Network Library for the Browser",
   "author": "Dr. Lee",
   "license": "MIT",
