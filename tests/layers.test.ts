@@ -8,6 +8,7 @@ import { GraphData } from '../src/core/graph';
 import { GCNConv } from '../src/layers/gcn';
 import { GATConv } from '../src/layers/gat';
 import { SAGEConv } from '../src/layers/sage';
+import { GINConv } from '../src/layers/gin';
 
 // Create a simple test graph
 function createTestGraph(): GraphData {
@@ -271,5 +272,112 @@ describe('SAGEConv', () => {
       // Should be close to 1 (or 0 if all zeros)
       expect(norm).toBeCloseTo(1, 0.1);
     }
+  });
+});
+
+describe('GINConv', () => {
+  it('should create layer with correct parameters', () => {
+    const layer = new GINConv({
+      inChannels: 3,
+      outChannels: 16,
+    });
+
+    expect(layer.inChannels).toBe(3);
+    expect(layer.outChannels).toBe(16);
+    expect(layer.hiddenChannels).toBe(16); // defaults to outChannels
+    expect(layer.trainEpsilon).toBe(true); // default
+  });
+
+  it('should forward pass correctly', () => {
+    const graph = createTestGraph();
+    const layer = new GINConv({
+      inChannels: 3,
+      outChannels: 8,
+    });
+
+    const output = layer.forward(graph);
+
+    expect(output.numNodes).toBe(4);
+    expect(output.x.shape).toEqual([4, 8]);
+  });
+
+  it('should work with custom hidden channels', () => {
+    const graph = createTestGraph();
+    const layer = new GINConv({
+      inChannels: 3,
+      outChannels: 8,
+      hiddenChannels: 32,
+    });
+
+    expect(layer.hiddenChannels).toBe(32);
+
+    const output = layer.forward(graph);
+    expect(output.x.shape).toEqual([4, 8]);
+  });
+
+  it('should work with fixed epsilon (non-trainable)', () => {
+    const graph = createTestGraph();
+    const layer = new GINConv({
+      inChannels: 3,
+      outChannels: 8,
+      epsilon: 0.1,
+      trainEpsilon: false,
+    });
+
+    expect(layer.trainEpsilon).toBe(false);
+
+    const output = layer.forward(graph);
+    expect(output.x.shape).toEqual([4, 8]);
+  });
+
+  it('should work without bias', () => {
+    const graph = createTestGraph();
+    const layer = new GINConv({
+      inChannels: 3,
+      outChannels: 8,
+      bias: false,
+    });
+
+    expect(layer.useBias).toBe(false);
+
+    const output = layer.forward(graph);
+    expect(output.x.shape).toEqual([4, 8]);
+  });
+
+  it('should throw on input dimension mismatch', () => {
+    const graph = createTestGraph();
+    const layer = new GINConv({
+      inChannels: 5, // Wrong!
+      outChannels: 8,
+    });
+
+    expect(() => layer.forward(graph)).toThrow();
+  });
+
+  it('should reset parameters correctly', () => {
+    const layer = new GINConv({
+      inChannels: 3,
+      outChannels: 8,
+    });
+
+    // Modify a parameter
+    const params = layer.parameters();
+    params[0].tensor.data[0] = 999;
+
+    // Reset
+    layer.resetParameters();
+
+    // Parameter should be different now
+    expect(params[0].tensor.data[0]).not.toBe(999);
+  });
+
+  it('should produce correct toString', () => {
+    const layer = new GINConv({
+      inChannels: 3,
+      outChannels: 8,
+      hiddenChannels: 16,
+    });
+
+    expect(layer.toString()).toBe('GINConv(3 -> 8, hidden=16, trainEps=true)');
   });
 });

@@ -30,7 +30,10 @@
 | Limited scalability | Scales with user devices |
 
 **This is the first library in the world to provide:**
-- Complete GCN, GAT, and GraphSAGE implementations in pure TypeScript
+- Complete GCN, GAT, GraphSAGE, and GIN implementations in pure TypeScript
+- Full training support with autograd, optimizers, and loss functions
+- Pre-built education-focused models (Model Zoo)
+- Model serialization for save/load capabilities
 - Browser-native tensor operations optimized for graph computations
 - Sparse matrix operations (COO, CSR formats) for efficient graph processing
 - A PyTorch Geometric-inspired API that ML engineers will find familiar
@@ -56,8 +59,11 @@ We conducted extensive research to verify BrowserGNN's novelty:
 
 - **Pure Browser Execution** - No server required, runs entirely client-side
 - **Privacy Preserving** - Graph data never leaves the user's device
-- **WebGPU Ready** - Architecture designed for GPU acceleration (coming soon)
-- **WASM Compatible** - Works on all modern browsers
+- **Full Training Support** - Autograd, optimizers (SGD, Adam, Adagrad, RMSprop), and loss functions
+- **Model Zoo** - Pre-built education-focused models for learning analytics
+- **Model Serialization** - Save and load models to JSON or browser storage
+- **WASM Optimized** - 8x loop-unrolled kernels for high performance
+- **WebGPU Ready** - GPU-accelerated inference via compute shaders
 - **Developer Friendly** - Familiar PyTorch Geometric-inspired API
 - **Fully Typed** - Complete TypeScript definitions
 
@@ -76,8 +82,32 @@ We conducted extensive research to verify BrowserGNN's novelty:
 | **GCNConv** | Graph Convolutional Network | [Kipf & Welling 2017](https://arxiv.org/abs/1609.02907) | ✅ Ready |
 | **GATConv** | Graph Attention Network | [Velickovic et al. 2018](https://arxiv.org/abs/1710.10903) | ✅ Ready |
 | **SAGEConv** | GraphSAGE | [Hamilton et al. 2017](https://arxiv.org/abs/1706.02216) | ✅ Ready |
-| GINConv | Graph Isomorphism Network | [Xu et al. 2019](https://arxiv.org/abs/1810.00826) | 🔄 Coming Soon |
+| **GINConv** | Graph Isomorphism Network | [Xu et al. 2019](https://arxiv.org/abs/1810.00826) | ✅ Ready |
 | EdgeConv | Dynamic Graph CNN | [Wang et al. 2019](https://arxiv.org/abs/1801.07829) | 🔄 Coming Soon |
+
+---
+
+## Model Zoo
+
+Pre-built models for common use cases:
+
+| Model | Use Case | Description |
+|-------|----------|-------------|
+| **StudentMasteryPredictor** | Knowledge Assessment | Predict student mastery levels across concepts in a curriculum |
+| **LearningPathRecommender** | Curriculum Sequencing | Recommend optimal learning paths through prerequisite graphs |
+| **ConceptPrerequisiteMapper** | Dependency Analysis | Discover and predict prerequisite relationships between concepts |
+
+```typescript
+import { StudentMasteryPredictor, LearningPathRecommender } from 'browser-gnn';
+
+// Predict student mastery from knowledge graph
+const predictor = new StudentMasteryPredictor({ inputFeatures: 11 });
+const { mastery, predictions } = await predictor.predict(knowledgeGraph);
+
+// Get personalized learning path recommendations
+const recommender = new LearningPathRecommender({ inputFeatures: 11 });
+const { recommendations } = await recommender.recommend(curriculum, masteredConcepts);
+```
 
 ---
 
@@ -578,26 +608,34 @@ const response = await slm.generate(prompt);
 
 ## Roadmap
 
-### Phase 1: Core Library (Current)
+### Phase 1: Core Library ✅
 - [x] Tensor operations
 - [x] GraphData structure
 - [x] Sparse matrix operations (COO, CSR)
 - [x] GCN, GAT, GraphSAGE layers
 - [x] Sequential model container
-- [x] Comprehensive test suite
+- [x] Comprehensive test suite (129+ tests)
 
-### Phase 2: Performance Optimization
-- [ ] WebGPU compute shaders for GPU acceleration
-- [ ] SIMD-optimized WASM kernels
-- [ ] Memory-efficient batching
-- [ ] Lazy evaluation
+### Phase 2: Performance Optimization ✅
+- [x] WebGPU compute shaders for GPU acceleration
+- [x] WASM-optimized kernels with 8x loop unrolling
+- [x] WASM scatter/gather operations
+- [x] forwardAsync() API for GPU inference
 
-### Phase 3: Advanced Features
-- [ ] Backpropagation for training
-- [ ] More layer types (GIN, EdgeConv, etc.)
-- [ ] Pre-trained model zoo
-- [ ] Model serialization/deserialization
-- [ ] Federated learning support
+### Phase 3: Training Support ✅
+- [x] Automatic differentiation (autograd)
+- [x] Optimizers (SGD, Adam, Adagrad, RMSprop)
+- [x] Loss functions (CrossEntropy, MSE, BCE, NLL, L1, SmoothL1)
+- [x] LR Schedulers (Step, Exponential, Cosine, ReduceOnPlateau)
+- [x] Trainer class with early stopping
+
+### Phase 4: Advanced Features (Current)
+- [x] GINConv layer
+- [x] Model Zoo (education-focused models)
+- [x] Model serialization/deserialization
+- [ ] More layer types (EdgeConv, ChebConv)
+- [ ] Heterogeneous graphs
+- [ ] ONNX model import
 
 ---
 

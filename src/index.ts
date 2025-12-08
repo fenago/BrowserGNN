@@ -8,7 +8,7 @@
  */
 
 // Version
-export const VERSION = '0.4.2';
+export const VERSION = '0.5.0';
 export const AUTHOR = 'Dr. Lee';
 
 // Core data structures
@@ -68,6 +68,8 @@ export {
   SAGEConv,
   type SAGEConvConfig,
   type SAGEAggregator,
+  GINConv,
+  type GINConvConfig,
 } from './layers';
 
 // Backend management
@@ -123,6 +125,37 @@ export {
   type TrainerConfig,
   type TrainingMetrics,
 } from './autograd';
+
+// Utilities
+export {
+  // Serialization
+  serializeModel,
+  deserializeModel,
+  getStateDict,
+  loadStateDict,
+  saveModelToJSON,
+  loadModelFromJSON,
+  downloadModel,
+  saveModelToStorage,
+  loadModelFromStorage,
+  listSavedModels,
+  deleteSavedModel,
+  getModelSize,
+  type SerializedModel,
+  type SerializedParameter,
+  type StateDict,
+} from './utils';
+
+// Model Zoo - Pre-built models for common tasks
+export {
+  // Education-focused models
+  StudentMasteryPredictor,
+  type StudentMasteryPredictorConfig,
+  LearningPathRecommender,
+  type LearningPathRecommenderConfig,
+  ConceptPrerequisiteMapper,
+  type ConceptPrerequisiteMapperConfig,
+} from './models';
 
 // Convenience function to create and initialize BrowserGNN
 export async function createBrowserGNN(config?: {

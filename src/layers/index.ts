@@ -8,3 +8,4 @@
 export { GCNConv, type GCNConvConfig } from './gcn';
 export { GATConv, type GATConvConfig } from './gat';
 export { SAGEConv, type SAGEConvConfig, type SAGEAggregator } from './sage';
+export { GINConv, type GINConvConfig } from './gin';

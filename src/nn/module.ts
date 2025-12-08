@@ -24,6 +24,7 @@ export abstract class Module {
   protected _training: boolean = true;
   protected _parameters: Map<string, Parameter> = new Map();
   protected _modules: Map<string, Module> = new Map();
+  protected _buffers: Map<string, Tensor> = new Map();
 
   /**
    * Forward pass - must be implemented by subclasses
@@ -42,6 +43,13 @@ export abstract class Module {
    */
   protected registerModule(name: string, module: Module): void {
     this._modules.set(name, module);
+  }
+
+  /**
+   * Register a buffer (non-trainable tensor)
+   */
+  protected registerBuffer(name: string, tensor: Tensor): void {
+    this._buffers.set(name, tensor);
   }
 
   /**

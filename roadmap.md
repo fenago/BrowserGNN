@@ -17,13 +17,13 @@ BrowserGNN aims to become the **"PyTorch Geometric for the browser"** - enabling
 | TensorFlow.js | Browser | ❌ None (open feature request since 2022) |
 | Transformers.js | Browser | ❌ No GNN models |
 | ONNX Runtime Web | Browser | ⚠️ Can run exported models, no native GNN ops |
-| **BrowserGNN** | **Browser** | **✅ GCN, GAT, GraphSAGE** |
+| **BrowserGNN** | **Browser** | **✅ GCN, GAT, GraphSAGE, GIN** |
 
 ---
 
-## Current Status: Phase 3 Complete ✅
+## Current Status: Phase 4 In Progress 🔄
 
-**Version:** 0.4.0
+**Version:** 0.5.0
 **Released:** December 2024
 
 ### What's Working Now
@@ -40,7 +40,7 @@ BrowserGNN aims to become the **"PyTorch Geometric for the browser"** - enabling
 - ✅ Dropout layer
 - ✅ CLI tool (`npx browser-gnn`)
 - ✅ Interactive demos (Karate Club, benchmarks)
-- ✅ Comprehensive test suite (109+ tests)
+- ✅ Comprehensive test suite (129+ tests)
 - ✅ npm package published
 - ✅ Live demo deployed
 
@@ -65,6 +65,14 @@ BrowserGNN aims to become the **"PyTorch Geometric for the browser"** - enabling
 - ✅ **t-SNE embedding visualization** for learned representations
 - ✅ **Prediction visualization** showing correct/incorrect classifications
 - ✅ **Training benchmarks** (0.5-1.2ms per epoch for 34-node graphs)
+
+#### Phase 4 Advanced Features 🔄
+- ✅ **GINConv** - Graph Isomorphism Network layer
+- ✅ **Model Zoo** - Pre-built education-focused models:
+  - StudentMasteryPredictor for knowledge assessment
+  - LearningPathRecommender for curriculum sequencing
+  - ConceptPrerequisiteMapper for dependency analysis
+- ✅ **Model Serialization** - Save/load models to JSON or browser storage
 
 ---
 
@@ -206,16 +214,16 @@ Enable **training and fine-tuning** of GNN models directly in the browser, compl
 
 ---
 
-## Phase 4: Advanced Features 📋
+## Phase 4: Advanced Features 🔄
 
-**Target:** 2026
-**Status:** Planned
+**Target:** 2025
+**Status:** In Progress
 
 ### 4.1 Additional Layer Types
 
 | Layer | Paper | Status |
 |-------|-------|--------|
-| GINConv | Graph Isomorphism Network (Xu et al. 2019) | ⏳ Planned |
+| GINConv | Graph Isomorphism Network (Xu et al. 2019) | ✅ Done |
 | EdgeConv | Dynamic Graph CNN (Wang et al. 2019) | ⏳ Planned |
 | ChebConv | Chebyshev spectral convolution | ⏳ Planned |
 | GraphConv | Relational GCN | ⏳ Planned |
@@ -239,15 +247,19 @@ Enable **training and fine-tuning** of GNN models directly in the browser, compl
 | Citation network | Node classification | ⏳ Planned |
 | Knowledge graph embedder | Link prediction | ⏳ Planned |
 | Social network analyzer | Community detection | ⏳ Planned |
+| **StudentMasteryPredictor** | **Knowledge assessment** | ✅ Done |
+| **LearningPathRecommender** | **Curriculum sequencing** | ✅ Done |
+| **ConceptPrerequisiteMapper** | **Dependency analysis** | ✅ Done |
 
 ### 4.4 Import/Export
 
 | Format | Direction | Status |
 |--------|-----------|--------|
+| **BrowserGNN JSON** | Export/Import | ✅ Done |
+| **Browser Storage** | Export/Import | ✅ Done |
 | ONNX | Import | ⏳ Planned |
 | PyTorch Geometric | Import | ⏳ Planned |
 | TensorFlow GNN | Import | ⏳ Planned |
-| BrowserGNN JSON | Export | ⏳ Planned |
 
 ---
 
