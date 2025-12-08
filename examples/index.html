@@ -356,6 +356,7 @@
     <a href="https://www.npmjs.com/package/browser-gnn" target="_blank" style="color: #00d9ff; margin: 0 15px; text-decoration: none;">npm Package</a>
     <a href="https://github.com/fenago/BrowserGNN" target="_blank" style="color: #00d9ff; margin: 0 15px; text-decoration: none;">GitHub</a>
     <a href="https://browsergnn.com" target="_blank" style="color: #00d9ff; margin: 0 15px; text-decoration: none;">Live Demo</a>
+    <a href="training-dashboard.html" style="background: linear-gradient(135deg, #ff6b6b 0%, #feca57 100%); color: #1a1a2e; padding: 8px 16px; border-radius: 20px; margin: 0 15px; text-decoration: none; font-weight: 600;">Training Dashboard</a>
   </div>
 
   <!-- What is this? -->
@@ -418,6 +419,12 @@
         <h3 style="color: #3fb950;">CPU vs GPU Benchmark</h3>
         <p>Compare CPU (WASM) vs WebGPU performance. See the Phase 2 optimizations in action!</p>
         <span class="badge" style="background: rgba(63, 185, 80, 0.2); color: #3fb950;">NEW! Phase 2</span>
+      </div>
+
+      <div class="demo-button" onclick="runTrainingBenchmark()" id="btn-train-bench" style="border-color: rgba(139, 92, 246, 0.5); background: rgba(139, 92, 246, 0.05);">
+        <h3 style="color: #8b5cf6;">Training Benchmark</h3>
+        <p>Measure forward pass, backward pass, and optimizer step performance for GNN training.</p>
+        <span class="badge" style="background: rgba(139, 92, 246, 0.2); color: #8b5cf6;">NEW! Phase 3</span>
       </div>
     </div>
   </div>
@@ -576,6 +583,10 @@ based on their features AND their connections to other nodes.</span>
       Dropout,
       createBrowserGNN,
       randomGraph,
+      Tensor,
+      Variable,
+      Adam,
+      crossEntropyLoss,
     } from '../src/index.ts';
 
     let initialized = false;
@@ -2179,6 +2190,157 @@ based on their features AND their connections to other nodes.</span>
           <strong>Best performance:</strong> On graphs with 1000+ nodes, GPU acceleration shows significant speedup!
         </p>
       `);
+    };
+
+    // PHASE 3 BENCHMARK: Training Performance
+    // ========================================
+
+    window.runTrainingBenchmark = async function() {
+      if (!initialized) {
+        log('Please wait for initialization...', 'error');
+        return;
+      }
+
+      clearOutput();
+      setActiveButton('btn-train-bench');
+
+      log('PHASE 3: TRAINING PERFORMANCE BENCHMARK', 'header');
+      log('=============================================');
+      log('');
+      log('Measuring forward pass, backward pass, and optimizer step timing.');
+      log('This benchmark tests the autograd system, loss computation, and optimization.');
+      log('');
+
+      const graphSizes = [100, 500, 1000];
+      const numClasses = 7;
+      const inChannels = 64;
+      const benchmarkIterations = 5;
+      const warmupIterations = 2;
+
+      const results = [];
+
+      for (const numNodes of graphSizes) {
+        log(`Testing graph with ${numNodes} nodes...`, '');
+
+        // Create random graph
+        const edgeProbability = Math.min((numNodes * 10) / (numNodes * (numNodes - 1)), 1);
+        const graph = randomGraph(numNodes, edgeProbability, inChannels);
+
+        // Create layer and optimizer
+        const layer = new GCNConv({
+          inChannels: inChannels,
+          outChannels: numClasses,
+        });
+
+        const params = layer.parameters();
+        const paramVars = params.map(p => new Variable(p.tensor, { requiresGrad: p.requiresGrad }));
+        const optimizer = new Adam(paramVars, { lr: 0.01 });
+
+        // Create random target labels
+        const targetData = new Uint32Array(numNodes);
+        for (let i = 0; i < numNodes; i++) {
+          targetData[i] = Math.floor(Math.random() * numClasses);
+        }
+
+        // Warmup
+        for (let i = 0; i < warmupIterations; i++) {
+          const outputGraph = layer.forward(graph);
+          const outputVar = new Variable(outputGraph.x, { requiresGrad: true });
+          const loss = crossEntropyLoss(outputVar, targetData);
+          loss.backward();
+          optimizer.stepOptimizer();
+          optimizer.zeroGrad();
+        }
+
+        // Benchmark forward pass
+        let forwardTotal = 0;
+        for (let i = 0; i < benchmarkIterations; i++) {
+          const start = performance.now();
+          layer.forward(graph);
+          forwardTotal += performance.now() - start;
+        }
+        const forwardMs = forwardTotal / benchmarkIterations;
+
+        // Benchmark backward pass
+        let backwardTotal = 0;
+        for (let i = 0; i < benchmarkIterations; i++) {
+          const outputGraph = layer.forward(graph);
+          const outputVar = new Variable(outputGraph.x, { requiresGrad: true });
+          const loss = crossEntropyLoss(outputVar, targetData);
+
+          const start = performance.now();
+          loss.backward();
+          backwardTotal += performance.now() - start;
+
+          optimizer.zeroGrad();
+        }
+        const backwardMs = backwardTotal / benchmarkIterations;
+
+        // Benchmark optimizer step
+        let optimizerTotal = 0;
+        for (let i = 0; i < benchmarkIterations; i++) {
+          const outputGraph = layer.forward(graph);
+          const outputVar = new Variable(outputGraph.x, { requiresGrad: true });
+          const loss = crossEntropyLoss(outputVar, targetData);
+          loss.backward();
+
+          const start = performance.now();
+          optimizer.stepOptimizer();
+          optimizerTotal += performance.now() - start;
+
+          optimizer.zeroGrad();
+        }
+        const optimizerStepMs = optimizerTotal / benchmarkIterations;
+
+        // Total epoch time
+        const totalMs = forwardMs + backwardMs + optimizerStepMs;
+
+        results.push({
+          numNodes,
+          numEdges: graph.numEdges,
+          forwardMs,
+          backwardMs,
+          optimizerStepMs,
+          totalMs
+        });
+
+        log(`  Forward: ${forwardMs.toFixed(2)}ms | Backward: ${backwardMs.toFixed(2)}ms | Optimizer: ${optimizerStepMs.toFixed(2)}ms | Total: ${totalMs.toFixed(2)}ms`, 'success');
+      }
+
+      log('');
+      log('TRAINING PERFORMANCE SUMMARY', 'header');
+      log('');
+
+      // Create results table
+      let table = '| Nodes | Edges | Forward (ms) | Backward (ms) | Optimizer (ms) | Total (ms) |\n';
+      table += '|-------|-------|--------------|---------------|----------------|------------|\n';
+      for (const r of results) {
+        table += `| ${r.numNodes} | ${r.numEdges} | ${r.forwardMs.toFixed(2)} | ${r.backwardMs.toFixed(2)} | ${r.optimizerStepMs.toFixed(2)} | ${r.totalMs.toFixed(2)} |\n`;
+      }
+      log(table, '');
+
+      log('');
+      log('PHASE 3 TRAINING FEATURES:', 'header');
+      log('  • Variable: Automatic differentiation with computational graph');
+      log('  • crossEntropyLoss: Classification loss with gradient tracking');
+      log('  • Adam optimizer: Adaptive moment estimation for training');
+      log('  • backward(): Reverse-mode automatic differentiation');
+      log('');
+      log('Training support enables end-to-end GNN training in the browser!', 'success');
+
+      // Display info
+      document.getElementById('graph-info').innerHTML = `
+        <h4>Phase 3 Training Benchmark Results</h4>
+        <p>Tested GCNConv training performance on graphs with ${graphSizes.join(', ')} nodes.</p>
+        <ul>
+          <li><strong>Forward pass:</strong> GNN layer inference</li>
+          <li><strong>Backward pass:</strong> Gradient computation via autograd</li>
+          <li><strong>Optimizer step:</strong> Adam weight updates</li>
+        </ul>
+        <p style="margin-top: 15px; color: #8b5cf6;">
+          <strong>Phase 3 enables:</strong> Full training loop, loss functions, and optimizers!
+        </p>
+      `;
     };
 
     // Initialize on load
