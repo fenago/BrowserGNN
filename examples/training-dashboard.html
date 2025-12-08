@@ -293,16 +293,18 @@
     /* Dataset selector */
     .dataset-cards {
       display: flex;
-      gap: 10px;
+      flex-wrap: wrap;
+      gap: 8px;
       margin: 10px 0;
     }
 
     .dataset-card {
-      flex: 1;
+      flex: 1 1 calc(33% - 8px);
+      min-width: 90px;
       background: rgba(15, 23, 42, 0.6);
       border: 2px solid transparent;
       border-radius: 10px;
-      padding: 12px;
+      padding: 10px 8px;
       cursor: pointer;
       text-align: center;
       transition: all 0.2s;
@@ -514,6 +516,26 @@
             <div class="dataset-card selected" data-dataset="karate">
               <h4>Karate Club</h4>
               <p>34 nodes, 2 classes</p>
+            </div>
+            <div class="dataset-card" data-dataset="social-network">
+              <h4>Social</h4>
+              <p>20 nodes, 2 classes</p>
+            </div>
+            <div class="dataset-card" data-dataset="citation-network">
+              <h4>Citation</h4>
+              <p>25 nodes, 3 classes</p>
+            </div>
+            <div class="dataset-card" data-dataset="molecule">
+              <h4>Molecule</h4>
+              <p>16 nodes, 3 classes</p>
+            </div>
+            <div class="dataset-card" data-dataset="protein">
+              <h4>Protein</h4>
+              <p>30 nodes, 3 classes</p>
+            </div>
+            <div class="dataset-card" data-dataset="web-graph">
+              <h4>Web Graph</h4>
+              <p>25 nodes, 3 classes</p>
             </div>
             <div class="dataset-card" data-dataset="custom">
               <h4>Custom CSV</h4>
@@ -889,6 +911,52 @@
         reader.onerror = (e) => reject(new Error('Failed to read file'));
         reader.readAsText(file);
       });
+    }
+
+    // Load built-in dataset from CSV files
+    async function loadBuiltInDataset(datasetName) {
+      try {
+        log(`Loading ${datasetName} dataset...`, 'info');
+
+        // Fetch edge and label files
+        const edgesUrl = `datasets/${datasetName}-edges.csv`;
+        const labelsUrl = `datasets/${datasetName}-labels.csv`;
+
+        const [edgesResponse, labelsResponse] = await Promise.all([
+          fetch(edgesUrl),
+          fetch(labelsUrl)
+        ]);
+
+        if (!edgesResponse.ok) {
+          throw new Error(`Failed to load edges: ${edgesResponse.status}`);
+        }
+        if (!labelsResponse.ok) {
+          throw new Error(`Failed to load labels: ${labelsResponse.status}`);
+        }
+
+        const edgesContent = await edgesResponse.text();
+        const labelsContent = await labelsResponse.text();
+
+        const fileContents = {};
+        fileContents[`${datasetName}-edges.csv`] = edgesContent;
+        fileContents[`${datasetName}-labels.csv`] = labelsContent;
+
+        const result = parseCSVDataset(fileContents);
+        graphData = result.graphData;
+        labels = result.labels;
+        generateNodePositions(result.edges, result.numNodes);
+
+        // Update UI
+        log(`Loaded ${datasetName}: ${result.numNodes} nodes, ${result.numClasses} classes`, 'success');
+        loadedDatasetInfo.classList.add('visible');
+        customDatasetName.textContent = datasetName;
+        customDatasetStats.textContent = `${result.numNodes} nodes, ${result.numClasses} classes`;
+
+        drawVisualization();
+      } catch (error) {
+        log(`Error loading ${datasetName}: ${error.message}`, 'error');
+        console.error(error);
+      }
     }
 
     function parseCSVDataset(fileContents) {
@@ -2221,9 +2289,12 @@
           loadedDatasetInfo.classList.remove('visible');
         }
 
+        // Load the selected dataset
         if (currentDataset === 'karate') {
           loadKarateClub();
           drawVisualization();
+        } else if (['social-network', 'citation-network', 'molecule', 'protein', 'web-graph'].includes(currentDataset)) {
+          loadBuiltInDataset(currentDataset);
         }
       });
     });
